@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 代码开发平台 MVP 需求规格说明书</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #647087;
+      --line: #dfe4ec;
+      --blue: #2457d6;
+      --green: #167a5b;
+      --amber: #a35f00;
+      --red: #b42318;
+      --soft-blue: #eef4ff;
+      --soft-green: #ecf8f2;
+      --soft-amber: #fff5df;
+      --soft-red: #fff0ee;
+      --code: #101828;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 64px;
+    }
+
+    header,
+    main {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    header {
+      padding: 36px;
+      margin-bottom: 18px;
+    }
+
+    main {
+      padding: 28px 36px 40px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 14px;
+      font-size: 25px;
+      line-height: 1.3;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 19px;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 8px 0;
+    }
+
+    .subtitle {
+      max-width: 920px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      border-radius: 999px;
+      padding: 5px 11px;
+      color: #344054;
+      font-size: 13px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      padding: 16px;
+      background: #fbfcff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 18px 0 30px;
+    }
+
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      text-decoration: underline;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: var(--soft-blue);
+      padding: 12px 14px;
+      border-radius: 4px;
+      margin: 14px 0;
+    }
+
+    .warn {
+      border-left-color: var(--amber);
+      background: var(--soft-amber);
+    }
+
+    .danger {
+      border-left-color: var(--red);
+      background: var(--soft-red);
+    }
+
+    .success {
+      border-left-color: var(--green);
+      background: var(--soft-green);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f2f5fa;
+      color: #253044;
+      font-weight: 650;
+    }
+
+    code {
+      font-family: "Cascadia Code", Consolas, Menlo, monospace;
+      background: #f2f4f7;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code);
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: "Cascadia Code", Consolas, Menlo, monospace;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    ul,
+    ol {
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+
+    .must {
+      color: var(--red);
+      background: var(--soft-red);
+      border-color: #f1b4ae;
+    }
+
+    .should {
+      color: var(--amber);
+      background: var(--soft-amber);
+      border-color: #f4c878;
+    }
+
+    .could {
+      color: var(--green);
+      background: var(--soft-green);
+      border-color: #9fd7c5;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      header,
+      main {
+        padding: 22px;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .page {
+        width: 100%;
+        padding: 0;
+      }
+
+      header,
+      main {
+        border: 0;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>AI 代码开发平台 MVP 需求规格说明书</h1>
+      <p class="subtitle">
+        本文档定义 AI 代码开发平台第一版 MVP 的产品范围、用户角色、核心流程、功能需求、页面要求、AI 输出要求、验收标准和非功能要求。
+        它承接《AI 代码开发平台设计方案》，用于把总体方案收敛成可排期、可评审、可开发、可验收的第一版需求。
+      </p>
+      <div class="meta">
+        <span class="tag">文档类型：MVP 需求规格</span>
+        <span class="tag">版本：v0.1</span>
+        <span class="tag">状态：草案</span>
+        <span class="tag">适用阶段：立项评审 / MVP 开发前</span>
+      </div>
+    </header>
+
+    <main>
+      <nav class="toc" aria-label="目录">
+        <a href="#purpose">1. 文档目的</a>
+        <a href="#positioning">2. MVP 定位</a>
+        <a href="#roles">3. 用户角色</a>
+        <a href="#scope">4. 范围定义</a>
+        <a href="#journey">5. 核心用户旅程</a>
+        <a href="#workflow">6. 阶段流程</a>
+        <a href="#functional">7. 功能需求</a>
+        <a href="#pages">8. 页面与交互需求</a>
+        <a href="#ai-output">9. AI 输出要求</a>
+        <a href="#permissions">10. 权限与审批</a>
+        <a href="#non-functional">11. 非功能需求</a>
+        <a href="#acceptance">12. MVP 验收标准</a>
+        <a href="#risks">13. 风险与依赖</a>
+        <a href="#milestone">14. 里程碑建议</a>
+      </nav>
+
+      <section id="purpose">
+        <h2>1. 文档目的</h2>
+        <p>本需求规格说明书用于明确 AI 代码开发平台 MVP 版本的建设边界，避免第一版同时追求过多能力而导致周期失控。</p>
+        <div class="note success">
+          <strong>MVP 核心目标：</strong>
+          第一版必须打通“上传项目 - 上传需求 - AI 生成澄清问题 - 业务反馈 - 方案生成 - 详细设计生成 - AI 编码 - 自测 - CR”的最小闭环。
+        </div>
+        <p>本文档不包含最终数据库表结构、详细接口字段、完整 UI 视觉稿、全部 Agent 提示词、生产级部署细节。这些内容应在后续《产品原型说明》《MVP 技术详细设计》《Agent 设计文档》《测试与验收方案》中展开。</p>
+      </section>
+
+      <section id="positioning">
+        <h2>2. MVP 定位</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>要证明什么</h3>
+            <ul>
+              <li>AI 能结合项目代码和需求文档发现不明确问题。</li>
+              <li>多轮澄清后，AI 能判断是否具备开发条件。</li>
+              <li>AI 能生成可评审的方案和详细设计。</li>
+              <li>AI 能在受控范围内修改代码，并通过测试和 CR 闭环。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>第一版不追求什么</h3>
+            <ul>
+              <li>不追求完整替代企业 DevOps 平台。</li>
+              <li>不追求所有语言和框架一次性支持。</li>
+              <li>不追求复杂多 Agent 全自动并行开发。</li>
+              <li>不追求生产级插件市场、计费系统和组织级知识库。</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>成功标志</h3>
+            <ul>
+              <li>可在真实中小型项目上跑通端到端流程。</li>
+              <li>AI 生成的问题和设计能被业务与研发确认有价值。</li>
+              <li>AI 代码变更可被追溯、测试、审查和回滚。</li>
+              <li>平台流程稳定，不因单个 AI 任务失败导致整体不可用。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="roles">
+        <h2>3. 用户角色</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>角色</th>
+              <th>核心诉求</th>
+              <th>MVP 权限</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>平台管理员</td>
+              <td>管理用户、项目、模型配置、沙箱策略和权限。</td>
+              <td>创建项目、配置模型、管理成员、查看审计。</td>
+            </tr>
+            <tr>
+              <td>项目负责人</td>
+              <td>推进需求从澄清到代码合并，控制范围和风险。</td>
+              <td>创建工作流、推进阶段、审批回滚、确认最终交付。</td>
+            </tr>
+            <tr>
+              <td>业务确认人</td>
+              <td>回答 AI 提出的问题，确认业务规则和验收标准。</td>
+              <td>查看需求问题、填写业务反馈、确认澄清结论。</td>
+            </tr>
+            <tr>
+              <td>架构师 / 技术负责人</td>
+              <td>审查方案设计、详细设计、关键技术风险。</td>
+              <td>审批方案、审批详细设计、驳回高风险设计。</td>
+            </tr>
+            <tr>
+              <td>开发者</td>
+              <td>查看 AI 改动，人工接管代码，处理冲突和补充实现。</td>
+              <td>查看代码、编辑代码、查看 Diff、接管 Agent 任务。</td>
+            </tr>
+            <tr>
+              <td>测试 / 质量负责人</td>
+              <td>确认测试矩阵、查看自测结果、审查质量风险。</td>
+              <td>查看测试报告、审批测试豁免、补充验收条件。</td>
+            </tr>
+            <tr>
+              <td>只读审计人员</td>
+              <td>追溯 AI 决策、代码变更、审批和测试证据。</td>
+              <td>只读查看项目、工作流、审计日志和阶段产物。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="scope">
+        <h2>4. 范围定义</h2>
+        <h3>MVP 范围内</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>范围</th>
+              <th>说明</th>
+              <th>优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>项目上传与代码工作台</td>
+              <td>支持 ZIP 上传或 Git 地址导入，展示文件树、代码内容、编辑、保存、Diff。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>需求文档上传与解析</td>
+              <td>支持 Markdown、TXT、PDF、Word 至少一种结构化解析方式；MVP 推荐优先 Markdown/TXT/PDF。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>AI 需求问题生成</td>
+              <td>AI 结合需求文档和项目代码，生成不明确问题、原因、影响范围和优先级。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>澄清闭环</td>
+              <td>支持录入业务反馈，AI 归纳答案，判断是否继续追问或进入方案阶段。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>方案和详细设计生成</td>
+              <td>AI 生成方案设计和详细设计，至少覆盖影响范围、实现方式、文件计划、测试计划。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>单 Agent 代码编写</td>
+              <td>MVP 优先支持单 Agent 在独立分支或工作区中生成代码变更。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>基础自测</td>
+              <td>支持配置并运行构建、单测、Lint 命令，展示日志和结果。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>基础 CR</td>
+              <td>AI 对最终 Diff 做正确性、设计一致性、可维护性、安全性初步审查。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>阶段反思</td>
+              <td>每个阶段生成反思报告，判断是否可进入下一阶段。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>有限多 Agent 策略</td>
+              <td>MVP 只要求能识别是否适合多 Agent，并生成分工建议；不要求复杂并行执行。</td>
+              <td><span class="pill should">应该</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>MVP 范围外</h3>
+        <ul>
+          <li>复杂多 Agent 自动并行开发、跨仓库协作和自动冲突修复。</li>
+          <li>企业级计费、租户套餐、插件市场、外部生态集成。</li>
+          <li>全语言全框架支持；第一版优先选择团队最熟悉的 1-2 类项目。</li>
+          <li>生产级私有化部署、跨区域容灾和大规模多租户运营能力。</li>
+          <li>自动上线发布；MVP 只做到可合并代码和交付报告。</li>
+        </ul>
+      </section>
+
+      <section id="journey">
+        <h2>5. 核心用户旅程</h2>
+        <pre>
+项目负责人创建项目
+  → 上传代码项目
+  → 平台解析项目结构并生成项目画像
+  → 上传需求文档
+  → AI 生成需求不明确问题
+  → 业务确认人填写反馈
+  → AI 继续追问或判断可开发
+  → 架构师审查 AI 生成的方案设计
+  → AI 生成详细设计和任务计划
+  → 编码 Agent 修改代码
+  → 平台运行自测
+  → 测试失败则回流给 Agent 修复
+  → CR Agent 审查代码
+  → 项目负责人确认最终交付产物
+        </pre>
+      </section>
+
+      <section id="workflow">
+        <h2>6. 阶段流程</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>用户动作</th>
+              <th>AI / 系统动作</th>
+              <th>阶段产物</th>
+              <th>通过条件</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>项目导入</td>
+              <td>上传 ZIP 或填写 Git 地址，选择项目类型。</td>
+              <td>解析目录、识别语言框架、生成文件摘要和测试命令建议。</td>
+              <td>代码树、项目画像、索引状态。</td>
+              <td>项目可浏览，关键文件可读取。</td>
+            </tr>
+            <tr>
+              <td>需求分析</td>
+              <td>上传需求文档，确认需求版本。</td>
+              <td>结合项目代码生成不明确问题和风险点。</td>
+              <td>问题清单、风险清单。</td>
+              <td>问题包含原因、影响范围和优先级。</td>
+            </tr>
+            <tr>
+              <td>澄清阶段</td>
+              <td>填写业务反馈，确认 AI 归纳是否正确。</td>
+              <td>合并答案，检查矛盾，继续追问或判断可开发。</td>
+              <td>澄清记录、决策记录。</td>
+              <td>无阻断级未知项。</td>
+            </tr>
+            <tr>
+              <td>方案生成</td>
+              <td>选择生成方案，评审方案。</td>
+              <td>生成技术路线、影响范围、Agent 策略、风险和回滚建议。</td>
+              <td>方案设计文档。</td>
+              <td>架构师或技术负责人确认。</td>
+            </tr>
+            <tr>
+              <td>详细设计</td>
+              <td>确认接口、数据、流程、测试要求。</td>
+              <td>生成详细设计、文件修改计划和测试矩阵。</td>
+              <td>详细设计文档、任务计划。</td>
+              <td>任务输入输出明确，可进入编码。</td>
+            </tr>
+            <tr>
+              <td>代码编写</td>
+              <td>触发 Agent 编码或人工接管。</td>
+              <td>在独立工作区修改代码，生成 Diff 和说明。</td>
+              <td>代码变更、实现说明。</td>
+              <td>代码可保存，Diff 可查看。</td>
+            </tr>
+            <tr>
+              <td>自测修复</td>
+              <td>选择测试命令，查看测试报告。</td>
+              <td>运行构建、测试、Lint，失败则归因并修复。</td>
+              <td>测试报告、修复记录。</td>
+              <td>阻断级测试通过或人工确认豁免。</td>
+            </tr>
+            <tr>
+              <td>代码 CR</td>
+              <td>查看 CR 问题，确认是否修复或豁免。</td>
+              <td>审查 Diff，输出问题和优化建议。</td>
+              <td>CR 报告、最终交付摘要。</td>
+              <td>高优先级问题清零或有审批豁免。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="functional">
+        <h2>7. 功能需求</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>编号</th>
+              <th>功能</th>
+              <th>需求描述</th>
+              <th>优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>FR-001</td>
+              <td>项目创建</td>
+              <td>用户可以创建项目，填写项目名称、描述、技术栈、代码来源。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-002</td>
+              <td>项目上传</td>
+              <td>支持上传 ZIP 包；可选支持 Git 地址导入。上传后展示解析进度。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-003</td>
+              <td>代码树展示</td>
+              <td>展示项目目录树，支持展开、搜索、打开文件。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-004</td>
+              <td>代码查看与编辑</td>
+              <td>支持代码高亮、编辑、保存、只读/编辑模式切换。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-005</td>
+              <td>Diff 查看</td>
+              <td>展示 AI 或人工修改前后的文件差异，支持按文件查看。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-006</td>
+              <td>需求文档上传</td>
+              <td>支持上传需求文档，保存版本，展示解析后的文本内容。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-007</td>
+              <td>需求问题生成</td>
+              <td>AI 根据需求和项目上下文生成不明确问题、候选答案、影响范围和优先级。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-008</td>
+              <td>业务反馈录入</td>
+              <td>用户可以逐条填写业务答案，AI 自动归纳为澄清记录。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-009</td>
+              <td>澄清循环</td>
+              <td>AI 判断是否还需要继续提问；如有阻断问题则继续生成问题。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-010</td>
+              <td>阶段反思</td>
+              <td>每个阶段完成后生成反思报告，包含完整性、准确性、一致性、风险和下一步建议。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-011</td>
+              <td>方案设计生成</td>
+              <td>AI 生成方案设计，包括目标、影响范围、技术路线、风险、回滚、Agent 策略。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-012</td>
+              <td>详细设计生成</td>
+              <td>AI 生成详细设计，包括文件修改计划、接口、数据、流程、异常、测试矩阵。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-013</td>
+              <td>AI 编码</td>
+              <td>AI 根据详细设计修改代码，生成 Diff、实现说明和待验证点。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-014</td>
+              <td>自测执行</td>
+              <td>支持运行预设构建、测试、Lint 命令，并展示日志和结果。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-015</td>
+              <td>失败修复回流</td>
+              <td>测试失败时，AI 分析原因并生成修复建议或直接修复。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-016</td>
+              <td>代码审查</td>
+              <td>AI 审查最终 Diff，输出问题、优先级、建议和是否阻断合并。</td>
+              <td><span class="pill must">必须</span></td>
+            </tr>
+            <tr>
+              <td>FR-017</td>
+              <td>审批记录</td>
+              <td>关键阶段支持人工通过、驳回、退回修改和备注。</td>
+              <td><span class="pill should">应该</span></td>
+            </tr>
+            <tr>
+              <td>FR-018</td>
+              <td>追溯链展示</td>
+              <td>支持从代码变更追溯到需求、澄清、设计、测试和 CR 结论。</td>
+              <td><span class="pill should">应该</span></td>
+            </tr>
+            <tr>
+              <td>FR-019</td>
+              <td>上下文包记录</td>
+              <td>记录 AI 每次调用使用的需求、代码、设计和模型版本。</td>
+              <td><span class="pill should">应该</span></td>
+            </tr>
+            <tr>
+              <td>FR-020</td>
+              <td>工作流时间线</td>
+              <td>展示每个阶段的状态、产物、耗时、审批和失败记录。</td>
+              <td><span class="pill should">应该</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="pages">
+        <h2>8. 页面与交互需求</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>页面</th>
+              <th>核心内容</th>
+              <th>关键操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>项目列表页</td>
+              <td>项目名称、状态、最近工作流、创建人、更新时间。</td>
+              <td>创建项目、进入项目、删除或归档项目。</td>
+            </tr>
+            <tr>
+              <td>项目上传页</td>
+              <td>代码来源、上传进度、解析状态、项目画像。</td>
+              <td>上传 ZIP、填写 Git 地址、重新解析、确认项目根目录。</td>
+            </tr>
+            <tr>
+              <td>代码工作台</td>
+              <td>文件树、代码编辑器、Diff、搜索、工作流侧栏。</td>
+              <td>打开文件、编辑保存、查看 Diff、人工接管。</td>
+            </tr>
+            <tr>
+              <td>需求分析页</td>
+              <td>需求文档、AI 问题清单、影响范围、优先级。</td>
+              <td>上传文档、触发分析、选择问题、导出问题。</td>
+            </tr>
+            <tr>
+              <td>澄清页</td>
+              <td>问题、业务反馈、AI 归纳、冲突提醒、澄清历史。</td>
+              <td>填写答案、确认归纳、继续追问、进入方案阶段。</td>
+            </tr>
+            <tr>
+              <td>方案设计页</td>
+              <td>技术方案、影响模块、风险、Agent 策略。</td>
+              <td>生成方案、重新生成、审批通过、驳回修改。</td>
+            </tr>
+            <tr>
+              <td>详细设计页</td>
+              <td>文件计划、接口设计、流程设计、测试矩阵。</td>
+              <td>生成详细设计、评论、审批、生成开发任务。</td>
+            </tr>
+            <tr>
+              <td>编码与 Diff 页</td>
+              <td>Agent 任务、代码变更、实现说明、待验证点。</td>
+              <td>触发编码、查看 Diff、接受/拒绝变更、人工编辑。</td>
+            </tr>
+            <tr>
+              <td>自测页</td>
+              <td>测试命令、运行日志、失败原因、修复建议。</td>
+              <td>运行测试、查看日志、触发修复、标记环境问题。</td>
+            </tr>
+            <tr>
+              <td>CR 页</td>
+              <td>审查问题、优先级、文件位置、优化建议。</td>
+              <td>触发 CR、修复问题、豁免、生成最终交付报告。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="ai-output">
+        <h2>9. AI 输出要求</h2>
+        <p>MVP 所有关键 AI 输出都必须结构化保存，避免只保存聊天文本导致后续无法追溯、校验和自动流转。</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>输出类型</th>
+              <th>必填内容</th>
+              <th>校验要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>需求问题</td>
+              <td>问题、分类、优先级、为什么要问、影响范围、候选答案。</td>
+              <td>阻断级问题必须有原因和影响说明。</td>
+            </tr>
+            <tr>
+              <td>澄清归纳</td>
+              <td>业务答案摘要、决策记录、是否存在冲突、是否继续追问。</td>
+              <td>必须引用原始业务反馈。</td>
+            </tr>
+            <tr>
+              <td>反思报告</td>
+              <td>阶段评分、是否可继续、阻断问题、非阻断问题、证据链。</td>
+              <td>阻断问题未关闭时不能自动进入下一阶段。</td>
+            </tr>
+            <tr>
+              <td>方案设计</td>
+              <td>目标、范围、技术路线、影响模块、风险、回滚、Agent 策略。</td>
+              <td>必须说明为什么选择当前方案。</td>
+            </tr>
+            <tr>
+              <td>详细设计</td>
+              <td>文件计划、接口、数据、流程、异常、测试矩阵。</td>
+              <td>每个开发任务必须有输入、输出和验收条件。</td>
+            </tr>
+            <tr>
+              <td>代码变更说明</td>
+              <td>修改文件、修改原因、实现方式、风险、测试建议。</td>
+              <td>每个变更必须关联详细设计任务。</td>
+            </tr>
+            <tr>
+              <td>测试报告</td>
+              <td>命令、耗时、状态、失败日志、原因归纳、修复建议。</td>
+              <td>环境失败和代码失败必须区分。</td>
+            </tr>
+            <tr>
+              <td>CR 报告</td>
+              <td>问题、严重级别、文件位置、原因、建议、是否阻断。</td>
+              <td>高优先级问题必须修复或审批豁免。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="permissions">
+        <h2>10. 权限与审批</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>动作</th>
+              <th>允许角色</th>
+              <th>MVP 规则</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>创建项目</td>
+              <td>平台管理员、项目负责人</td>
+              <td>创建人默认成为项目负责人。</td>
+            </tr>
+            <tr>
+              <td>上传需求</td>
+              <td>项目负责人、业务确认人</td>
+              <td>上传后生成新需求版本。</td>
+            </tr>
+            <tr>
+              <td>填写业务反馈</td>
+              <td>业务确认人、项目负责人</td>
+              <td>反馈必须保留填写人和时间。</td>
+            </tr>
+            <tr>
+              <td>审批方案</td>
+              <td>架构师、技术负责人</td>
+              <td>不通过则退回方案生成阶段。</td>
+            </tr>
+            <tr>
+              <td>触发 AI 编码</td>
+              <td>项目负责人、开发者</td>
+              <td>详细设计未通过时禁止触发。</td>
+            </tr>
+            <tr>
+              <td>人工编辑代码</td>
+              <td>开发者、项目负责人</td>
+              <td>人工编辑后必须重新生成 Diff 和测试建议。</td>
+            </tr>
+            <tr>
+              <td>CR 豁免</td>
+              <td>技术负责人、质量负责人</td>
+              <td>必须填写原因和到期时间。</td>
+            </tr>
+            <tr>
+              <td>确认最终交付</td>
+              <td>项目负责人</td>
+              <td>必须已完成自测和 CR。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="non-functional">
+        <h2>11. 非功能需求</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>类别</th>
+              <th>要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>稳定性</td>
+              <td>AI、索引、测试、CR 等长任务必须异步执行；任务失败不能影响用户继续浏览项目。</td>
+            </tr>
+            <tr>
+              <td>性能</td>
+              <td>中小型项目文件树首屏加载应在可接受时间内完成；长任务必须展示进度。</td>
+            </tr>
+            <tr>
+              <td>安全</td>
+              <td>上传项目必须进行密钥扫描；代码执行必须在沙箱中进行；敏感信息不得传入模型上下文。</td>
+            </tr>
+            <tr>
+              <td>可追溯</td>
+              <td>每个阶段产物必须记录输入来源、输出结果、执行人或 Agent、时间和版本。</td>
+            </tr>
+            <tr>
+              <td>可恢复</td>
+              <td>工作流失败后应允许重试、退回、人工接管或取消。</td>
+            </tr>
+            <tr>
+              <td>兼容性</td>
+              <td>MVP 优先支持主流浏览器和一种团队主要技术栈项目。</td>
+            </tr>
+            <tr>
+              <td>可用性</td>
+              <td>所有阶段必须展示当前状态、下一步动作和阻断原因。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="acceptance">
+        <h2>12. MVP 验收标准</h2>
+        <h3>端到端验收</h3>
+        <ul>
+          <li>使用一个真实中小型项目，可以完成项目上传、需求上传、需求问题生成、业务反馈录入、方案生成、详细设计生成、AI 编码、自测、CR 的完整流程。</li>
+          <li>AI 生成的问题至少包含问题原因、影响范围、优先级和候选答案。</li>
+          <li>澄清阶段可以多轮循环，并能明确判断是否可进入方案阶段。</li>
+          <li>方案和详细设计可被人工审批、驳回和重新生成。</li>
+          <li>AI 代码变更可以在 Diff 中查看，并能关联到详细设计任务。</li>
+          <li>测试失败可以生成失败原因和修复建议，修复后可重新测试。</li>
+          <li>CR 报告能识别至少正确性、可维护性、安全性、设计一致性四类问题。</li>
+          <li>最终交付报告能展示需求、澄清、设计、代码、测试、CR 的链路。</li>
+        </ul>
+
+        <h3>质量验收</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>指标</th>
+              <th>MVP 验收口径</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>需求问题有效性</td>
+              <td>业务确认人认为 AI 问题中至少一半具有实际澄清价值。</td>
+            </tr>
+            <tr>
+              <td>流程可完成性</td>
+              <td>至少 3 个不同需求样例可以跑通端到端流程。</td>
+            </tr>
+            <tr>
+              <td>代码可审查性</td>
+              <td>AI 生成的每个代码变更都能在 Diff 中查看并人工接管。</td>
+            </tr>
+            <tr>
+              <td>失败可恢复性</td>
+              <td>AI 输出失败、测试失败、审批驳回均能停在明确状态并继续处理。</td>
+            </tr>
+            <tr>
+              <td>审计完整性</td>
+              <td>关键用户操作、AI 阶段产物、审批和测试结果都有记录。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="risks">
+        <h2>13. 风险与依赖</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>风险</th>
+              <th>影响</th>
+              <th>应对策略</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AI 对代码理解不准确</td>
+              <td>生成错误问题、错误方案或错误代码。</td>
+              <td>引入代码索引、证据链、反思报告和人工审批。</td>
+            </tr>
+            <tr>
+              <td>项目环境不可复现</td>
+              <td>测试无法运行，代码质量无法验证。</td>
+              <td>要求维护项目环境声明，优先支持可稳定构建的项目。</td>
+            </tr>
+            <tr>
+              <td>需求文档质量差</td>
+              <td>AI 澄清问题过多或偏离重点。</td>
+              <td>支持多轮澄清，允许人工补充业务背景。</td>
+            </tr>
+            <tr>
+              <td>第一版范围过大</td>
+              <td>开发周期不可控。</td>
+              <td>严格限制 MVP 范围，多 Agent 并行、企业级插件等放到后续版本。</td>
+            </tr>
+            <tr>
+              <td>沙箱执行安全风险</td>
+              <td>上传代码可能包含恶意脚本。</td>
+              <td>默认受限容器执行，限制网络、资源和凭证。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="milestone">
+        <h2>14. 里程碑建议</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>里程碑</th>
+              <th>交付内容</th>
+              <th>验收重点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>M1：项目工作台</td>
+              <td>项目创建、上传、代码树、代码查看、编辑、Diff。</td>
+              <td>真实项目可导入、查看和修改。</td>
+            </tr>
+            <tr>
+              <td>M2：需求澄清闭环</td>
+              <td>需求上传、AI 问题生成、业务反馈、澄清循环、反思报告。</td>
+              <td>AI 能提出有效问题并判断是否可开发。</td>
+            </tr>
+            <tr>
+              <td>M3：方案与详细设计</td>
+              <td>方案生成、详细设计生成、审批、任务计划。</td>
+              <td>设计能指导代码修改。</td>
+            </tr>
+            <tr>
+              <td>M4：AI 编码与自测</td>
+              <td>Agent 编码、Diff、测试运行、失败修复回流。</td>
+              <td>能完成小需求代码修改并通过测试。</td>
+            </tr>
+            <tr>
+              <td>M5：CR 与交付报告</td>
+              <td>AI CR、问题修复、追溯链、最终交付报告。</td>
+              <td>交付结果可审查、可追溯、可回滚。</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="note">
+          <strong>推荐开发策略：</strong>
+          先完成 M1 和 M2，尽快验证“AI 结合代码生成需求澄清问题”的核心价值；确认价值后再进入代码生成和 CR 能力建设。
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      AI 代码开发平台 MVP 需求规格说明书 · docs/02-需求规格
+    </footer>
+  </div>
+</body>
+</html>

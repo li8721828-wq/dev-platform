@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 代码开发平台 MVP 技术详细设计</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #dfe4ec;
+      --blue: #2457d6;
+      --green: #167a5b;
+      --amber: #a35f00;
+      --red: #b42318;
+      --soft-blue: #eef4ff;
+      --soft-green: #ecf8f2;
+      --soft-amber: #fff5df;
+      --soft-red: #fff0ee;
+      --code: #101828;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 64px;
+    }
+
+    header,
+    main {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    header {
+      padding: 36px;
+      margin-bottom: 18px;
+    }
+
+    main {
+      padding: 28px 36px 40px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 40px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 34px 0 14px;
+      font-size: 25px;
+      line-height: 1.3;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 19px;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 8px 0;
+    }
+
+    .subtitle {
+      max-width: 920px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      background: #fbfcff;
+      border-radius: 999px;
+      padding: 5px 11px;
+      color: #344054;
+      font-size: 13px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      padding: 16px;
+      background: #fbfcff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 18px 0 30px;
+    }
+
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      text-decoration: underline;
+    }
+
+    .note {
+      border: 1px solid #c8d8ff;
+      background: var(--soft-blue);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin: 14px 0;
+    }
+
+    .warn {
+      border-color: #f4c878;
+      background: var(--soft-amber);
+    }
+
+    .success {
+      border-color: #9fd7c5;
+      background: var(--soft-green);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 22px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f2f5fa;
+      color: #253044;
+      font-weight: 650;
+    }
+
+    code {
+      font-family: "Cascadia Code", Consolas, Menlo, monospace;
+      background: #f2f4f7;
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code);
+      color: #f8fafc;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: "Cascadia Code", Consolas, Menlo, monospace;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    ul,
+    ol {
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 4px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 20px;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      header,
+      main {
+        padding: 22px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>AI 代码开发平台 MVP 技术详细设计</h1>
+      <p class="subtitle">
+        本文档定义 MVP 版本的技术实现方案，覆盖服务拆分、核心状态机、接口设计、数据表设计、AI 编排、代码工作台、沙箱执行、权限审计和可观测性。
+        它承接总体设计、MVP 需求规格和产品原型说明，用于指导研发拆分和开发排期。
+      </p>
+      <div class="meta">
+        <span class="tag">文档类型：技术详细设计</span>
+        <span class="tag">版本：v0.1</span>
+        <span class="tag">适用范围：MVP</span>
+        <span class="tag">目录：docs/04-技术详细设计</span>
+      </div>
+    </header>
+
+    <main>
+      <nav class="toc" aria-label="目录">
+        <a href="#scope">1. 技术范围</a>
+        <a href="#architecture">2. 系统架构</a>
+        <a href="#services">3. 服务模块</a>
+        <a href="#workflow">4. 工作流状态机</a>
+        <a href="#data">5. 数据表设计</a>
+        <a href="#api">6. API 设计</a>
+        <a href="#ai">7. AI 编排设计</a>
+        <a href="#code-workspace">8. 代码工作台</a>
+        <a href="#sandbox">9. 沙箱执行</a>
+        <a href="#security">10. 权限与审计</a>
+        <a href="#observability">11. 可观测性</a>
+        <a href="#deployment">12. MVP 部署</a>
+        <a href="#tasks">13. 开发拆分</a>
+      </nav>
+
+      <section id="scope">
+        <h2>1. 技术范围</h2>
+        <p>MVP 需要实现一条可运行的端到端链路，而不是完整企业级平台。本阶段技术设计优先保证稳定、可追溯、可人工接管。</p>
+
+        <h3>MVP 技术假设</h3>
+        <ul>
+          <li>前端使用 React 或 Vue 均可，代码编辑器建议使用 Monaco Editor。</li>
+          <li>后端可采用 Java Spring Boot、Node.js NestJS 或 Go。本文档以服务边界和接口为主，不绑定具体语言。</li>
+          <li>数据库使用 PostgreSQL，缓存和任务锁使用 Redis，对象文件使用本地文件存储或 MinIO。</li>
+          <li>AI 调用通过统一 AI Orchestrator 封装，业务服务不直接调用模型。</li>
+          <li>MVP 沙箱可先使用 Docker Runner，后续再升级 Kubernetes Job 或隔离更强的 Runner。</li>
+          <li>MVP 支持单 Agent 编码，多 Agent 先实现策略判断和任务拆分，不做复杂并行调度。</li>
+        </ul>
+
+        <div class="note">
+          <strong>边界说明：</strong>
+          本文档可以写具体表、接口和状态机，因为它已经进入技术详细设计阶段；但字段类型和索引仍以 MVP 可实现为准，后续可在数据库设计评审中继续细化。
+        </div>
+      </section>
+
+      <section id="architecture">
+        <h2>2. 系统架构</h2>
+        <pre>
+┌──────────────────────────────────────────────────────────────────────┐
+│ Web Console                                                          │
+│ 项目列表 / 代码工作台 / 需求澄清 / 方案设计 / 自测 / CR / 审批          │
+└───────────────┬──────────────────────────────────────────────────────┘
+                │ HTTPS / SSE
+                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ API Gateway / BFF                                                    │
+│ 鉴权、权限、参数校验、聚合接口、任务事件订阅                           │
+└──────┬────────┬────────┬────────┬────────┬────────┬─────────────────┘
+       ▼        ▼        ▼        ▼        ▼        ▼
+┌──────────┐ ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Project  │ │ Repo   │ │ Workflow │ │ AI       │ │ Sandbox  │
+│ Service  │ │ Service│ │ Service  │ │ Service  │ │ Service  │
+└────┬─────┘ └────┬───┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+     │            │          │            │            │
+     ▼            ▼          ▼            ▼            ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ PostgreSQL / Redis / Object Storage / Workspace Storage / Logs        │
+└──────────────────────────────────────────────────────────────────────┘
+        </pre>
+
+        <h3>核心设计原则</h3>
+        <ul>
+          <li>同步接口只负责创建任务和查询状态，AI、索引、测试、CR 均异步执行。</li>
+          <li>所有阶段产物都保存版本，后续阶段引用固定版本，避免上下文漂移。</li>
+          <li>代码变更始终发生在项目工作区或分支内，不直接修改原始上传包。</li>
+          <li>所有 AI 产物必须经过结构化校验和反思门禁，失败时进入可恢复状态。</li>
+          <li>所有关键动作写入审计日志，包括用户动作、AI 动作、系统动作和审批动作。</li>
+        </ul>
+      </section>
+
+      <section id="services">
+        <h2>3. 服务模块</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>模块</th>
+              <th>职责</th>
+              <th>MVP 关键能力</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>web-console</td>
+              <td>前端工作台。</td>
+              <td>项目、代码、需求、澄清、方案、详细设计、编码、测试、CR 页面。</td>
+            </tr>
+            <tr>
+              <td>api-gateway</td>
+              <td>统一 API 入口。</td>
+              <td>鉴权、权限校验、请求聚合、SSE 事件订阅。</td>
+            </tr>
+            <tr>
+              <td>project-service</td>
+              <td>项目与成员管理。</td>
+              <td>项目创建、成员角色、项目状态、环境声明。</td>
+            </tr>
+            <tr>
+              <td>repo-service</td>
+              <td>代码仓库和文件工作区。</td>
+              <td>ZIP 解压、Git clone、文件树、文件读写、Diff、快照。</td>
+            </tr>
+            <tr>
+              <td>document-service</td>
+              <td>需求文档解析和版本管理。</td>
+              <td>文档上传、文本抽取、版本保存、片段引用。</td>
+            </tr>
+            <tr>
+              <td>workflow-service</td>
+              <td>阶段状态机和门禁。</td>
+              <td>阶段推进、审批、反思门禁、失败恢复、事件通知。</td>
+            </tr>
+            <tr>
+              <td>ai-orchestrator</td>
+              <td>AI 调用统一编排。</td>
+              <td>上下文包、Prompt 版本、模型调用、JSON Schema 校验、重试。</td>
+            </tr>
+            <tr>
+              <td>agent-service</td>
+              <td>Agent 任务管理。</td>
+              <td>需求分析 Agent、方案 Agent、详细设计 Agent、编码 Agent、测试 Agent、CR Agent。</td>
+            </tr>
+            <tr>
+              <td>sandbox-service</td>
+              <td>构建和测试运行。</td>
+              <td>Docker Runner、命令执行、日志采集、超时、资源限制。</td>
+            </tr>
+            <tr>
+              <td>review-service</td>
+              <td>代码审查和质量报告。</td>
+              <td>Diff 分析、CR 问题、严重级别、修复建议。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="workflow">
+        <h2>4. 工作流状态机</h2>
+        <h3>主状态</h3>
+        <pre>
+PROJECT_IMPORTED
+  → REQUIREMENT_ANALYZING
+  → REQUIREMENT_QUESTIONING
+  → CLARIFYING
+  → READY_FOR_SOLUTION
+  → SOLUTION_GENERATING
+  → SOLUTION_REVIEWING
+  → DETAIL_DESIGN_GENERATING
+  → DETAIL_DESIGN_REVIEWING
+  → CODING
+  → SELF_TESTING
+  → CODE_REVIEWING
+  → READY_TO_DELIVER
+  → DONE
+
+任意状态可进入：
+  WAITING_HUMAN_APPROVAL
+  PAUSED
+  FAILED
+  CANCELLED
+        </pre>
+
+        <h3>状态流转规则</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>当前状态</th>
+              <th>事件</th>
+              <th>目标状态</th>
+              <th>校验</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>PROJECT_IMPORTED</td>
+              <td>upload_requirement</td>
+              <td>REQUIREMENT_ANALYZING</td>
+              <td>项目索引成功，需求文档解析成功。</td>
+            </tr>
+            <tr>
+              <td>REQUIREMENT_ANALYZING</td>
+              <td>analysis_completed</td>
+              <td>REQUIREMENT_QUESTIONING</td>
+              <td>AI 输出问题清单通过 Schema 校验。</td>
+            </tr>
+            <tr>
+              <td>CLARIFYING</td>
+              <td>clarification_ready</td>
+              <td>READY_FOR_SOLUTION</td>
+              <td>无阻断级未知项，反思报告允许继续。</td>
+            </tr>
+            <tr>
+              <td>SOLUTION_REVIEWING</td>
+              <td>approve_solution</td>
+              <td>DETAIL_DESIGN_GENERATING</td>
+              <td>审批人角色为架构师或技术负责人。</td>
+            </tr>
+            <tr>
+              <td>DETAIL_DESIGN_REVIEWING</td>
+              <td>approve_detail_design</td>
+              <td>CODING</td>
+              <td>详细设计包含文件计划、任务计划和测试矩阵。</td>
+            </tr>
+            <tr>
+              <td>CODING</td>
+              <td>coding_completed</td>
+              <td>SELF_TESTING</td>
+              <td>存在代码 Diff，变更说明可解析。</td>
+            </tr>
+            <tr>
+              <td>SELF_TESTING</td>
+              <td>tests_failed</td>
+              <td>CODING</td>
+              <td>失败归因为代码问题，生成修复任务。</td>
+            </tr>
+            <tr>
+              <td>SELF_TESTING</td>
+              <td>tests_passed</td>
+              <td>CODE_REVIEWING</td>
+              <td>阻断级测试通过。</td>
+            </tr>
+            <tr>
+              <td>CODE_REVIEWING</td>
+              <td>review_blocked</td>
+              <td>CODING</td>
+              <td>存在高优先级问题且未豁免。</td>
+            </tr>
+            <tr>
+              <td>CODE_REVIEWING</td>
+              <td>review_passed</td>
+              <td>READY_TO_DELIVER</td>
+              <td>高优先级问题清零或有有效豁免。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="data">
+        <h2>5. 数据表设计</h2>
+        <p>本节给出 MVP 级数据表设计。字段类型按 PostgreSQL 表达，后续可在数据库评审中补充完整 DDL、约束和索引。</p>
+
+        <h3>核心表</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>表名</th>
+              <th>关键字段</th>
+              <th>索引建议</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>projects</td>
+              <td>id uuid, name varchar, description text, status varchar, created_by uuid, created_at timestamptz</td>
+              <td>idx_projects_created_by, idx_projects_status</td>
+              <td>项目主表。</td>
+            </tr>
+            <tr>
+              <td>project_members</td>
+              <td>id uuid, project_id uuid, user_id uuid, role varchar, status varchar</td>
+              <td>uk_project_user, idx_project_members_role</td>
+              <td>项目成员与角色。</td>
+            </tr>
+            <tr>
+              <td>repo_snapshots</td>
+              <td>id uuid, project_id uuid, source_type varchar, branch varchar, commit_sha varchar, storage_uri text, status varchar</td>
+              <td>idx_repo_snapshots_project, idx_repo_snapshots_commit</td>
+              <td>代码快照和工作区基线。</td>
+            </tr>
+            <tr>
+              <td>file_entries</td>
+              <td>id uuid, snapshot_id uuid, path text, file_type varchar, size bigint, checksum varchar, language varchar</td>
+              <td>idx_file_entries_snapshot_path</td>
+              <td>文件树和文件元数据。</td>
+            </tr>
+            <tr>
+              <td>requirement_docs</td>
+              <td>id uuid, project_id uuid, version int, file_uri text, parsed_text_uri text, status varchar</td>
+              <td>idx_requirement_docs_project_version</td>
+              <td>需求文档版本。</td>
+            </tr>
+            <tr>
+              <td>workflow_runs</td>
+              <td>id uuid, project_id uuid, current_stage varchar, status varchar, requirement_doc_id uuid, snapshot_id uuid</td>
+              <td>idx_workflow_runs_project, idx_workflow_runs_status</td>
+              <td>端到端工作流实例。</td>
+            </tr>
+            <tr>
+              <td>stage_runs</td>
+              <td>id uuid, workflow_id uuid, stage varchar, status varchar, input_refs jsonb, output_refs jsonb, started_at timestamptz, finished_at timestamptz</td>
+              <td>idx_stage_runs_workflow_stage</td>
+              <td>阶段执行记录。</td>
+            </tr>
+            <tr>
+              <td>clarification_rounds</td>
+              <td>id uuid, workflow_id uuid, round_no int, questions jsonb, answers jsonb, status varchar</td>
+              <td>idx_clarification_workflow_round</td>
+              <td>多轮澄清。</td>
+            </tr>
+            <tr>
+              <td>reflection_reports</td>
+              <td>id uuid, stage_run_id uuid, score int, can_continue boolean, issues jsonb, evidence jsonb</td>
+              <td>idx_reflection_stage_run</td>
+              <td>阶段反思报告。</td>
+            </tr>
+            <tr>
+              <td>design_artifacts</td>
+              <td>id uuid, workflow_id uuid, artifact_type varchar, version int, content_uri text, status varchar, approved_by uuid</td>
+              <td>idx_design_artifacts_workflow_type</td>
+              <td>方案设计和详细设计统一存储。</td>
+            </tr>
+            <tr>
+              <td>agent_tasks</td>
+              <td>id uuid, workflow_id uuid, stage_run_id uuid, agent_role varchar, status varchar, task_spec jsonb, result_refs jsonb</td>
+              <td>idx_agent_tasks_workflow_status, idx_agent_tasks_role</td>
+              <td>Agent 任务。</td>
+            </tr>
+            <tr>
+              <td>code_changes</td>
+              <td>id uuid, workflow_id uuid, agent_task_id uuid, branch varchar, patch_uri text, diff_summary jsonb, status varchar</td>
+              <td>idx_code_changes_workflow, idx_code_changes_task</td>
+              <td>代码变更记录。</td>
+            </tr>
+            <tr>
+              <td>test_runs</td>
+              <td>id uuid, workflow_id uuid, code_change_id uuid, command text, status varchar, logs_uri text, result jsonb</td>
+              <td>idx_test_runs_workflow_status</td>
+              <td>构建和测试结果。</td>
+            </tr>
+            <tr>
+              <td>review_findings</td>
+              <td>id uuid, workflow_id uuid, code_change_id uuid, severity varchar, category varchar, file_path text, line_no int, suggestion text, status varchar</td>
+              <td>idx_review_findings_change, idx_review_findings_severity</td>
+              <td>CR 问题。</td>
+            </tr>
+            <tr>
+              <td>approval_records</td>
+              <td>id uuid, workflow_id uuid, target_type varchar, target_id uuid, decision varchar, comment text, approved_by uuid</td>
+              <td>idx_approval_records_workflow, idx_approval_records_target</td>
+              <td>审批记录。</td>
+            </tr>
+            <tr>
+              <td>context_packages</td>
+              <td>id uuid, stage_run_id uuid, prompt_version varchar, model_version varchar, context_refs jsonb, checksum varchar</td>
+              <td>idx_context_packages_stage_run</td>
+              <td>AI 上下文包。</td>
+            </tr>
+            <tr>
+              <td>audit_logs</td>
+              <td>id uuid, actor_type varchar, actor_id uuid, action varchar, target_type varchar, target_id uuid, detail jsonb, created_at timestamptz</td>
+              <td>idx_audit_logs_target, idx_audit_logs_actor, idx_audit_logs_created_at</td>
+              <td>审计日志。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="api">
+        <h2>6. API 设计</h2>
+        <h3>接口风格</h3>
+        <ul>
+          <li>REST API 负责资源管理和任务触发。</li>
+          <li>SSE 用于推送工作流、AI、测试、CR 的运行事件。</li>
+          <li>所有长任务接口返回 <code>run_id</code> 或 <code>task_id</code>，前端通过事件接口订阅状态。</li>
+          <li>所有写接口支持 <code>Idempotency-Key</code> 请求头，避免重复创建任务。</li>
+        </ul>
+
+        <h3>核心接口</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>接口</th>
+              <th>方法</th>
+              <th>说明</th>
+              <th>返回重点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/api/projects</code></td>
+              <td>POST</td>
+              <td>创建项目。</td>
+              <td>project_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/projects/{id}/upload</code></td>
+              <td>POST</td>
+              <td>上传 ZIP 或绑定 Git 地址。</td>
+              <td>snapshot_id, index_task_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/projects/{id}/tree</code></td>
+              <td>GET</td>
+              <td>获取文件树。</td>
+              <td>files[]</td>
+            </tr>
+            <tr>
+              <td><code>/api/projects/{id}/files</code></td>
+              <td>GET/PUT</td>
+              <td>读取或保存文件。</td>
+              <td>content, checksum</td>
+            </tr>
+            <tr>
+              <td><code>/api/projects/{id}/diff</code></td>
+              <td>GET</td>
+              <td>查看工作区 Diff。</td>
+              <td>changed_files[]</td>
+            </tr>
+            <tr>
+              <td><code>/api/requirements</code></td>
+              <td>POST</td>
+              <td>上传需求文档。</td>
+              <td>requirement_doc_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/workflows</code></td>
+              <td>POST</td>
+              <td>创建工作流。</td>
+              <td>workflow_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/workflows/{id}/analyze-requirement</code></td>
+              <td>POST</td>
+              <td>触发需求分析。</td>
+              <td>stage_run_id, agent_task_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/clarifications/{id}/answers</code></td>
+              <td>POST</td>
+              <td>提交业务反馈。</td>
+              <td>round_id, next_action</td>
+            </tr>
+            <tr>
+              <td><code>/api/workflows/{id}/generate-solution</code></td>
+              <td>POST</td>
+              <td>生成方案设计。</td>
+              <td>artifact_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/workflows/{id}/generate-detail-design</code></td>
+              <td>POST</td>
+              <td>生成详细设计。</td>
+              <td>artifact_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/workflows/{id}/start-coding</code></td>
+              <td>POST</td>
+              <td>触发 AI 编码。</td>
+              <td>agent_task_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/test-runs</code></td>
+              <td>POST</td>
+              <td>运行测试命令。</td>
+              <td>test_run_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/code-reviews</code></td>
+              <td>POST</td>
+              <td>触发代码审查。</td>
+              <td>review_run_id</td>
+            </tr>
+            <tr>
+              <td><code>/api/approvals</code></td>
+              <td>POST</td>
+              <td>提交审批结果。</td>
+              <td>approval_id, next_stage</td>
+            </tr>
+            <tr>
+              <td><code>/api/runs/{id}/events</code></td>
+              <td>GET</td>
+              <td>SSE 订阅运行事件。</td>
+              <td>event stream</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>事件格式</h3>
+        <pre>{
+  "event_id": "evt_001",
+  "run_id": "run_123",
+  "workflow_id": "wf_123",
+  "type": "agent_task_progress",
+  "stage": "REQUIREMENT_ANALYZING",
+  "status": "running",
+  "message": "正在生成需求澄清问题",
+  "progress": 45,
+  "created_at": "2026-06-01T10:00:00Z"
+}</pre>
+      </section>
+
+      <section id="ai">
+        <h2>7. AI 编排设计</h2>
+        <h3>调用流程</h3>
+        <pre>
+业务服务创建 Agent 任务
+  → AI Orchestrator 生成上下文包
+  → Prompt Registry 选择提示词版本
+  → Model Router 选择模型
+  → 调用模型
+  → JSON Schema 校验
+  → 失败时重试或进入人工接管
+  → 保存结构化结果
+  → 触发反思 Agent
+  → 反思通过后通知 Workflow Service
+        </pre>
+
+        <h3>Agent 输出 Schema</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>输出对象</th>
+              <th>必填字段</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>需求分析 Agent</td>
+              <td>requirement_questions</td>
+              <td>question, category, priority, why_needed, impact_scope, candidate_answers</td>
+            </tr>
+            <tr>
+              <td>澄清 Agent</td>
+              <td>clarification_summary</td>
+              <td>answer_summary, conflicts, unresolved_questions, can_continue</td>
+            </tr>
+            <tr>
+              <td>方案 Agent</td>
+              <td>solution_design</td>
+              <td>goal, scope, technical_approach, impacted_modules, risks, rollback_plan, agent_strategy</td>
+            </tr>
+            <tr>
+              <td>详细设计 Agent</td>
+              <td>detail_design</td>
+              <td>file_plan, api_design, data_design, flow_design, exception_design, test_matrix</td>
+            </tr>
+            <tr>
+              <td>编码 Agent</td>
+              <td>code_change_plan</td>
+              <td>changed_files, patch_refs, implementation_summary, risks, test_suggestions</td>
+            </tr>
+            <tr>
+              <td>测试 Agent</td>
+              <td>test_analysis</td>
+              <td>status, failed_commands, root_cause, fix_suggestions, environment_issue</td>
+            </tr>
+            <tr>
+              <td>CR Agent</td>
+              <td>review_findings</td>
+              <td>severity, category, file_path, line_no, issue, suggestion, blocking</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>上下文包策略</h3>
+        <ul>
+          <li>需求分析阶段：需求文档片段、项目画像、关键目录结构、接口摘要。</li>
+          <li>方案阶段：需求、澄清记录、项目画像、代码索引摘要、历史反思报告。</li>
+          <li>详细设计阶段：方案设计、代码文件计划、接口和数据模型相关文件。</li>
+          <li>编码阶段：详细设计、目标文件、相关引用文件、测试文件、禁止修改范围。</li>
+          <li>CR 阶段：最终 Diff、详细设计、测试报告、追溯链。</li>
+        </ul>
+      </section>
+
+      <section id="code-workspace">
+        <h2>8. 代码工作台</h2>
+        <h3>工作区目录</h3>
+        <pre>
+workspace_root/
+  projects/
+    {project_id}/
+      source/              原始代码或 Git 工作区
+      snapshots/           阶段快照
+      patches/             AI 和人工变更 Patch
+      artifacts/           方案、设计、报告
+      logs/                构建、测试、AI 执行日志
+        </pre>
+
+        <h3>文件读写规则</h3>
+        <ul>
+          <li>读取文件必须校验项目权限和路径合法性，禁止目录穿越。</li>
+          <li>保存文件必须带上前端读取时的 checksum，避免覆盖其他修改。</li>
+          <li>AI 编码前创建工作区快照，失败时可以恢复到快照。</li>
+          <li>Diff 基于工作区当前状态和阶段基线生成。</li>
+          <li>大文件、二进制文件、密钥文件默认只读。</li>
+        </ul>
+
+        <h3>代码索引</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>索引类型</th>
+              <th>MVP 实现</th>
+              <th>后续增强</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>文件索引</td>
+              <td>路径、大小、语言、checksum、文本摘要。</td>
+              <td>增量索引和文件热度。</td>
+            </tr>
+            <tr>
+              <td>全文索引</td>
+              <td>基于数据库或轻量搜索库。</td>
+              <td>专用搜索引擎。</td>
+            </tr>
+            <tr>
+              <td>符号索引</td>
+              <td>优先支持目标技术栈的函数、类、接口提取。</td>
+              <td>LSP / Tree-sitter 深度索引。</td>
+            </tr>
+            <tr>
+              <td>语义索引</td>
+              <td>MVP 可先做文件摘要级检索。</td>
+              <td>向量库和调用链融合检索。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sandbox">
+        <h2>9. 沙箱执行</h2>
+        <h3>任务生命周期</h3>
+        <pre>
+创建 test_run
+  → 校验权限和环境声明
+  → 准备工作区快照
+  → 创建 Docker 容器
+  → 注入允许的环境变量
+  → 执行命令
+  → 流式采集日志
+  → 保存退出码、日志、耗时、资源使用
+  → 销毁容器
+  → 更新 test_run 状态
+        </pre>
+
+        <h3>安全限制</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>限制项</th>
+              <th>MVP 要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CPU / 内存</td>
+              <td>每个任务设置默认资源上限，管理员可配置。</td>
+            </tr>
+            <tr>
+              <td>执行时间</td>
+              <td>默认 30 分钟超时，超时后强制终止。</td>
+            </tr>
+            <tr>
+              <td>网络</td>
+              <td>默认禁止内网访问，允许配置依赖源白名单。</td>
+            </tr>
+            <tr>
+              <td>环境变量</td>
+              <td>只注入项目环境声明中允许的变量。</td>
+            </tr>
+            <tr>
+              <td>文件系统</td>
+              <td>容器只挂载当前工作区，不挂载宿主机敏感路径。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="security">
+        <h2>10. 权限与审计</h2>
+        <h3>权限模型</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>资源</th>
+              <th>动作</th>
+              <th>角色</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>项目</td>
+              <td>创建、查看、归档</td>
+              <td>管理员、项目负责人</td>
+            </tr>
+            <tr>
+              <td>需求</td>
+              <td>上传、查看、反馈</td>
+              <td>项目负责人、业务确认人</td>
+            </tr>
+            <tr>
+              <td>方案/设计</td>
+              <td>生成、审批、驳回</td>
+              <td>架构师、技术负责人、项目负责人</td>
+            </tr>
+            <tr>
+              <td>代码</td>
+              <td>查看、编辑、AI 编码、Diff</td>
+              <td>开发者、项目负责人</td>
+            </tr>
+            <tr>
+              <td>测试/CR</td>
+              <td>运行、查看、豁免</td>
+              <td>开发者、测试负责人、技术负责人</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>审计动作</h3>
+        <ul>
+          <li>项目创建、项目上传、成员变更。</li>
+          <li>需求上传、业务反馈、阶段推进。</li>
+          <li>AI 调用、上下文包生成、模型输出保存。</li>
+          <li>方案审批、详细设计审批、CR 豁免。</li>
+          <li>代码修改、人工接管、测试执行、回滚。</li>
+        </ul>
+      </section>
+
+      <section id="observability">
+        <h2>11. 可观测性</h2>
+        <h3>日志</h3>
+        <ul>
+          <li>业务日志：项目、工作流、阶段、审批。</li>
+          <li>AI 日志：模型、Prompt 版本、上下文包、耗时、失败原因。</li>
+          <li>沙箱日志：命令、退出码、资源使用、运行日志 URI。</li>
+          <li>安全日志：权限拒绝、敏感文件扫描、异常路径访问。</li>
+        </ul>
+
+        <h3>指标</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>指标</th>
+              <th>用途</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>workflow_stage_duration_seconds</td>
+              <td>观察阶段耗时。</td>
+            </tr>
+            <tr>
+              <td>agent_task_failure_total</td>
+              <td>观察 Agent 失败率。</td>
+            </tr>
+            <tr>
+              <td>ai_model_call_latency_seconds</td>
+              <td>观察模型调用耗时。</td>
+            </tr>
+            <tr>
+              <td>sandbox_run_failure_total</td>
+              <td>观察沙箱任务失败。</td>
+            </tr>
+            <tr>
+              <td>review_blocking_findings_total</td>
+              <td>观察阻断级 CR 问题。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="deployment">
+        <h2>12. MVP 部署</h2>
+        <h3>开发环境</h3>
+        <ul>
+          <li>Docker Compose 启动 PostgreSQL、Redis、MinIO 和后端服务。</li>
+          <li>前端本地 dev server 连接后端 API。</li>
+          <li>沙箱 Runner 可先使用本机 Docker。</li>
+        </ul>
+
+        <h3>测试环境</h3>
+        <ul>
+          <li>后端服务容器化部署。</li>
+          <li>Runner 与业务服务分离部署，避免测试任务影响 API 服务。</li>
+          <li>对象存储保存文档、Patch、日志和报告。</li>
+        </ul>
+
+        <h3>配置项</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>配置</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MODEL_PROVIDER</td>
+              <td>模型供应商。</td>
+            </tr>
+            <tr>
+              <td>MODEL_DEFAULT</td>
+              <td>默认模型。</td>
+            </tr>
+            <tr>
+              <td>WORKSPACE_ROOT</td>
+              <td>项目工作区根目录。</td>
+            </tr>
+            <tr>
+              <td>OBJECT_STORAGE_BUCKET</td>
+              <td>对象存储桶。</td>
+            </tr>
+            <tr>
+              <td>SANDBOX_IMAGE_DEFAULT</td>
+              <td>默认沙箱镜像。</td>
+            </tr>
+            <tr>
+              <td>SANDBOX_NETWORK_MODE</td>
+              <td>沙箱网络策略。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="tasks">
+        <h2>13. 开发拆分</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>模块</th>
+              <th>任务</th>
+              <th>优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>基础工程</td>
+              <td>前后端项目初始化、数据库、Redis、对象存储、鉴权框架。</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>项目工作台</td>
+              <td>项目创建、上传、文件树、文件读取、代码编辑、Diff。</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>需求澄清</td>
+              <td>需求上传、文档解析、AI 问题生成、业务反馈、澄清循环。</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>工作流</td>
+              <td>状态机、阶段产物、反思门禁、审批、事件推送。</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>AI 编排</td>
+              <td>上下文包、Prompt 版本、模型调用、Schema 校验、Agent 任务。</td>
+              <td>P0</td>
+            </tr>
+            <tr>
+              <td>方案与详细设计</td>
+              <td>方案生成、详细设计生成、任务计划、审批。</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>代码生成</td>
+              <td>编码 Agent、Patch 生成、变更说明、人工接管。</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>自测与 CR</td>
+              <td>沙箱 Runner、测试日志、失败修复、CR Agent。</td>
+              <td>P1</td>
+            </tr>
+            <tr>
+              <td>追溯与报告</td>
+              <td>追溯链、交付报告、审计日志查询。</td>
+              <td>P2</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer>
+      AI 代码开发平台 MVP 技术详细设计 · docs/04-技术详细设计
+    </footer>
+  </div>
+</body>
+</html>

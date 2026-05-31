@@ -1,0 +1,24 @@
+{
+  "name": "dev-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@10.9.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @dev-platform/api\" \"npm run dev --workspace @dev-platform/web\"",
+    "dev:web": "npm run dev --workspace @dev-platform/web",
+    "dev:api": "npm run dev --workspace @dev-platform/api",
+    "dev:runner": "npm run dev --workspace @dev-platform/runner",
+    "build": "npm run build --workspace @dev-platform/shared && npm run build --workspace @dev-platform/api && npm run build --workspace @dev-platform/runner && npm run build --workspace @dev-platform/web",
+    "typecheck": "npm run typecheck --workspace @dev-platform/shared && npm run typecheck --workspace @dev-platform/api && npm run typecheck --workspace @dev-platform/runner && npm run typecheck --workspace @dev-platform/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}
