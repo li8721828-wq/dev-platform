@@ -1,8 +1,5 @@
 import { randomUUID } from "node:crypto";
-import pg from "pg";
-import type { ProjectSummary, RequirementQuestion, WorkflowSummary } from "@dev-platform/shared";
-
-const { Pool } = pg;
+import type { ProjectSummary, RequirementQuestion, WorkflowSummary, DesignDocument, CodingTask, TestRun, CodeReviewRecord, DeployConfig } from "@dev-platform/shared";
 
 export interface RequirementAnalysisRecord {
   id: string;
@@ -14,11 +11,55 @@ export interface RequirementAnalysisRecord {
   createdAt: string;
 }
 
+export interface ClarificationRound {
+  id: string;
+  projectId: string;
+  workflowId: string | null;
+  roundNo: number;
+  questions: RequirementQuestion[];
+  answers: Array<{ questionId: string; answer: string }>;
+  status: "pending" | "answered" | "follow_up" | "closed";
+  createdAt: string;
+}
+
+export interface ReflectionReportRecord {
+  id: string;
+  workflowId: string | null;
+  stage: string;
+  score: number;
+  canContinue: boolean;
+  blockingIssues: unknown[];
+  nonBlockingIssues: unknown[];
+  consistencyCheck: unknown;
+  evidence: string[];
+  nextAction: string;
+  summary: string;
+  createdAt: string;
+}
+
+export interface AiProviderRecord {
+  id: string;
+  providerId: string;
+  name: string;
+  apiKey: string;
+  baseUrl?: string;
+  model: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface GitProjectInfo {
+  gitUrl?: string;
+  repoPath?: string;
+  defaultBranch?: string;
+}
+
 export interface AppStore {
-  kind: "postgres" | "memory";
+  kind: "memory";
   listProjects(): Promise<ProjectSummary[]>;
   getProject(projectId: string): Promise<ProjectSummary | null>;
-  createProject(input: { name: string; description: string }): Promise<{ project: ProjectSummary; workflow: WorkflowSummary }>;
+  createProject(input: { name: string; description: string; gitUrl?: string }): Promise<{ project: ProjectSummary; workflow: WorkflowSummary }>;
+  updateProjectGitInfo(projectId: string, info: GitProjectInfo): Promise<void>;
   listWorkflowsByProject(projectId: string): Promise<WorkflowSummary[]>;
   updateWorkflowStage(input: {
     workflowId: string;
@@ -32,30 +73,85 @@ export interface AppStore {
     questions: RequirementQuestion[];
     reflection: unknown;
   }): Promise<RequirementAnalysisRecord>;
+  saveClarificationRound(input: {
+    projectId: string;
+    workflowId: string | null;
+    roundNo: number;
+    questions: RequirementQuestion[];
+    answers: Array<{ questionId: string; answer: string }>;
+    status: ClarificationRound["status"];
+  }): Promise<ClarificationRound>;
+  updateClarificationRound(input: {
+    id: string;
+    answers: Array<{ questionId: string; answer: string }>;
+    status: ClarificationRound["status"];
+  }): Promise<void>;
+  listClarificationRounds(projectId: string): Promise<ClarificationRound[]>;
+  getClarificationRound(roundId: string): Promise<ClarificationRound | null>;
+  saveReflectionReport(input: {
+    workflowId: string | null;
+    stage: string;
+    score: number;
+    canContinue: boolean;
+    blockingIssues: unknown[];
+    nonBlockingIssues: unknown[];
+    consistencyCheck: unknown;
+    evidence: string[];
+    nextAction: string;
+    summary: string;
+  }): Promise<ReflectionReportRecord>;
+  getReflectionReport(reportId: string): Promise<ReflectionReportRecord | null>;
+  listReflectionReportsByWorkflow(workflowId: string): Promise<ReflectionReportRecord[]>;
+  saveAiProvider(input: {
+    providerId: string; name: string; apiKey: string; baseUrl?: string; model: string; isActive: boolean;
+  }): Promise<AiProviderRecord>;
+  getActiveAiProvider(): Promise<AiProviderRecord | null>;
+  listAiProviders(): Promise<AiProviderRecord[]>;
+  deleteAiProvider(id: string): Promise<void>;
+  activateAiProvider(id: string): Promise<void>;
+  deactivateAllAiProviders(): Promise<void>;
+  saveDesignDocument(input: {
+    projectId: string; workflowId: string | null; type: DesignDocument["type"]; title: string; content: unknown;
+  }): Promise<DesignDocument>;
+  getDesignDocument(docId: string): Promise<DesignDocument | null>;
+  listDesignDocuments(projectId: string): Promise<DesignDocument[]>;
+  updateDesignDocument(input: { id: string; content?: unknown; status?: DesignDocument["status"]; reviewResult?: unknown }): Promise<void>;
+  saveCodingTask(input: {
+    projectId: string; workflowId: string | null; designDocId: string | null;
+    files: CodingTask["files"]; traceability: CodingTask["traceability"]; agentRole: string;
+  }): Promise<CodingTask>;
+  getCodingTask(taskId: string): Promise<CodingTask | null>;
+  listCodingTasks(projectId: string): Promise<CodingTask[]>;
+  updateCodingTask(input: { id: string; status?: CodingTask["status"]; files?: CodingTask["files"]; appliedAt?: string }): Promise<void>;
+  saveTestRun(input: {
+    projectId: string; workflowId: string | null; testPlan: unknown; testCases: TestRun["testCases"]; status: TestRun["status"];
+  }): Promise<TestRun>;
+  getTestRun(runId: string): Promise<TestRun | null>;
+  listTestRuns(projectId: string): Promise<TestRun[]>;
+  updateTestRun(input: { id: string; results?: TestRun["results"]; summary?: TestRun["summary"]; status?: TestRun["status"]; analysis?: string; completedAt?: string }): Promise<void>;
+  saveCodeReview(input: { projectId: string; workflowId: string | null; codeFiles: string[] }): Promise<CodeReviewRecord>;
+  getCodeReview(reviewId: string): Promise<CodeReviewRecord | null>;
+  listCodeReviews(projectId: string): Promise<CodeReviewRecord[]>;
+  updateCodeReview(input: {
+    id: string; aiReview?: CodeReviewRecord["aiReview"]; humanComments?: CodeReviewRecord["humanComments"];
+    status?: CodeReviewRecord["status"]; finalReport?: unknown; finalizedAt?: string;
+  }): Promise<void>;
+  saveDeployConfig(input: {
+    projectId: string; dockerfile: string; dockerCompose: string;
+    envVars: DeployConfig["envVars"]; buildCommand: string; startCommand: string;
+  }): Promise<DeployConfig>;
+  getDeployConfig(projectId: string): Promise<DeployConfig | null>;
+  updateDeployConfig(input: {
+    projectId: string; dockerfile?: string; dockerCompose?: string;
+    envVars?: DeployConfig["envVars"]; buildCommand?: string; startCommand?: string; status?: DeployConfig["status"];
+  }): Promise<void>;
 }
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${randomUUID()}`;
 
 export async function createStore(): Promise<AppStore> {
-  const databaseUrl =
-    process.env.DATABASE_URL ?? "postgres://dev_platform:dev_platform@localhost:5432/dev_platform";
-
-  if (process.env.DISABLE_DATABASE === "true") {
-    return new MemoryStore();
-  }
-
-  const pool = new Pool({ connectionString: databaseUrl });
-
-  try {
-    await pool.query("select 1");
-    await migrate(pool);
-    return new PostgresStore(pool);
-  } catch (error) {
-    await pool.end().catch(() => undefined);
-    console.warn("PostgreSQL unavailable, falling back to in-memory store.", error);
-    return new MemoryStore();
-  }
+  return new MemoryStore();
 }
 
 class MemoryStore implements AppStore {
@@ -63,6 +159,15 @@ class MemoryStore implements AppStore {
   private projects = new Map<string, ProjectSummary>();
   private workflows = new Map<string, WorkflowSummary>();
   private analyses = new Map<string, RequirementAnalysisRecord>();
+  private clarificationRounds = new Map<string, ClarificationRound>();
+  private reflectionReports = new Map<string, ReflectionReportRecord>();
+  private aiProviders = new Map<string, AiProviderRecord>();
+  private projectGitInfo = new Map<string, GitProjectInfo>();
+  private designDocuments = new Map<string, DesignDocument>();
+  private codingTasks = new Map<string, CodingTask>();
+  private testRuns = new Map<string, TestRun>();
+  private codeReviews = new Map<string, CodeReviewRecord>();
+  private deployConfigs = new Map<string, DeployConfig>();
 
   async listProjects() {
     return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -72,219 +177,249 @@ class MemoryStore implements AppStore {
     return this.projects.get(projectId) ?? null;
   }
 
-  async createProject(input: { name: string; description: string }) {
+  async createProject(input: { name: string; description: string; gitUrl?: string }) {
     const timestamp = now();
     const project: ProjectSummary = {
-      id: id("prj"),
-      name: input.name,
-      description: input.description,
-      status: "created",
-      createdAt: timestamp,
-      updatedAt: timestamp
+      id: id("prj"), name: input.name, description: input.description,
+      status: "created", createdAt: timestamp, updatedAt: timestamp
     };
-
     const workflow: WorkflowSummary = {
-      id: id("wf"),
-      projectId: project.id,
-      currentStage: "PROJECT_IMPORTED",
-      status: "waiting",
-      updatedAt: timestamp
+      id: id("wf"), projectId: project.id,
+      currentStage: "PROJECT_IMPORTED", status: "waiting", updatedAt: timestamp
     };
-
+    if (input.gitUrl) this.projectGitInfo.set(project.id, { gitUrl: input.gitUrl });
     this.projects.set(project.id, project);
     this.workflows.set(workflow.id, workflow);
     return { project, workflow };
   }
 
+  async updateProjectGitInfo(projectId: string, info: GitProjectInfo) {
+    const existing = this.projectGitInfo.get(projectId) ?? {};
+    this.projectGitInfo.set(projectId, { ...existing, ...info });
+  }
+
   async listWorkflowsByProject(projectId: string) {
-    return [...this.workflows.values()].filter((workflow) => workflow.projectId === projectId);
+    return [...this.workflows.values()].filter((w) => w.projectId === projectId);
   }
 
-  async updateWorkflowStage(input: {
-    workflowId: string;
-    currentStage: WorkflowSummary["currentStage"];
-    status: WorkflowSummary["status"];
-  }) {
+  async updateWorkflowStage(input: { workflowId: string; currentStage: WorkflowSummary["currentStage"]; status: WorkflowSummary["status"] }) {
     const workflow = this.workflows.get(input.workflowId);
-    if (!workflow) {
-      return;
+    if (workflow) {
+      workflow.currentStage = input.currentStage;
+      workflow.status = input.status;
+      workflow.updatedAt = now();
     }
-    workflow.currentStage = input.currentStage;
-    workflow.status = input.status;
-    workflow.updatedAt = now();
   }
 
-  async saveRequirementAnalysis(input: {
-    projectId: string;
-    workflowId: string | null;
-    requirementText: string;
-    questions: RequirementQuestion[];
-    reflection: unknown;
-  }) {
+  async saveRequirementAnalysis(input: { projectId: string; workflowId: string | null; requirementText: string; questions: RequirementQuestion[]; reflection: unknown }) {
     const record: RequirementAnalysisRecord = {
-      id: id("ra"),
-      projectId: input.projectId,
-      workflowId: input.workflowId,
-      requirementText: input.requirementText,
-      questions: input.questions,
-      reflection: input.reflection,
-      createdAt: now()
+      id: id("ra"), projectId: input.projectId, workflowId: input.workflowId,
+      requirementText: input.requirementText, questions: input.questions, reflection: input.reflection, createdAt: now()
     };
     this.analyses.set(record.id, record);
     return record;
   }
-}
 
-class PostgresStore implements AppStore {
-  kind: "postgres" = "postgres";
-
-  constructor(private readonly pool: pg.Pool) {}
-
-  async listProjects() {
-    const result = await this.pool.query("select * from projects order by updated_at desc");
-    return result.rows.map(mapProject);
+  async saveClarificationRound(input: { projectId: string; workflowId: string | null; roundNo: number; questions: RequirementQuestion[]; answers: Array<{ questionId: string; answer: string }>; status: ClarificationRound["status"] }) {
+    const record: ClarificationRound = {
+      id: id("cr"), projectId: input.projectId, workflowId: input.workflowId,
+      roundNo: input.roundNo, questions: input.questions, answers: input.answers, status: input.status, createdAt: now()
+    };
+    this.clarificationRounds.set(record.id, record);
+    return record;
   }
 
-  async getProject(projectId: string) {
-    const result = await this.pool.query("select * from projects where id = $1", [projectId]);
-    return result.rows[0] ? mapProject(result.rows[0]) : null;
+  async updateClarificationRound(input: { id: string; answers: Array<{ questionId: string; answer: string }>; status: ClarificationRound["status"] }) {
+    const record = this.clarificationRounds.get(input.id);
+    if (record) { record.answers = input.answers; record.status = input.status; }
   }
 
-  async createProject(input: { name: string; description: string }) {
-    const projectId = id("prj");
-    const workflowId = id("wf");
-    const client = await this.pool.connect();
+  async listClarificationRounds(projectId: string) {
+    return [...this.clarificationRounds.values()].filter((r) => r.projectId === projectId).sort((a, b) => a.roundNo - b.roundNo);
+  }
 
-    try {
-      await client.query("begin");
-      const projectResult = await client.query(
-        `insert into projects (id, name, description, status)
-         values ($1, $2, $3, 'created')
-         returning *`,
-        [projectId, input.name, input.description]
-      );
-      const workflowResult = await client.query(
-        `insert into workflow_runs (id, project_id, current_stage, status)
-         values ($1, $2, 'PROJECT_IMPORTED', 'waiting')
-         returning *`,
-        [workflowId, projectId]
-      );
-      await client.query("commit");
-      return {
-        project: mapProject(projectResult.rows[0]),
-        workflow: mapWorkflow(workflowResult.rows[0])
-      };
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
+  async getClarificationRound(roundId: string) { return this.clarificationRounds.get(roundId) ?? null; }
+
+  async saveReflectionReport(input: { workflowId: string | null; stage: string; score: number; canContinue: boolean; blockingIssues: unknown[]; nonBlockingIssues: unknown[]; consistencyCheck: unknown; evidence: string[]; nextAction: string; summary: string }) {
+    const record: ReflectionReportRecord = {
+      id: id("rr"), workflowId: input.workflowId, stage: input.stage, score: input.score,
+      canContinue: input.canContinue, blockingIssues: input.blockingIssues, nonBlockingIssues: input.nonBlockingIssues,
+      consistencyCheck: input.consistencyCheck, evidence: input.evidence, nextAction: input.nextAction, summary: input.summary, createdAt: now()
+    };
+    this.reflectionReports.set(record.id, record);
+    return record;
+  }
+
+  async getReflectionReport(reportId: string) { return this.reflectionReports.get(reportId) ?? null; }
+
+  async listReflectionReportsByWorkflow(workflowId: string) {
+    return [...this.reflectionReports.values()].filter((r) => r.workflowId === workflowId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async saveAiProvider(input: { providerId: string; name: string; apiKey: string; baseUrl?: string; model: string; isActive: boolean }) {
+    if (input.isActive) { for (const p of this.aiProviders.values()) p.isActive = false; }
+    const record: AiProviderRecord = {
+      id: id("aip"), providerId: input.providerId, name: input.name, apiKey: input.apiKey,
+      baseUrl: input.baseUrl, model: input.model, isActive: input.isActive, createdAt: now()
+    };
+    this.aiProviders.set(record.id, record);
+    return record;
+  }
+
+  async getActiveAiProvider() {
+    for (const p of this.aiProviders.values()) { if (p.isActive) return p; }
+    return null;
+  }
+
+  async listAiProviders() {
+    return [...this.aiProviders.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async deleteAiProvider(id: string) {
+    this.aiProviders.delete(id);
+  }
+
+  async activateAiProvider(id: string) {
+    for (const p of this.aiProviders.values()) p.isActive = p.id === id;
+  }
+
+  async deactivateAllAiProviders() {
+    for (const p of this.aiProviders.values()) p.isActive = false;
+  }
+
+  async saveDesignDocument(input: { projectId: string; workflowId: string | null; type: DesignDocument["type"]; title: string; content: unknown }) {
+    const timestamp = now();
+    const record: DesignDocument = {
+      id: id("dd"), projectId: input.projectId, workflowId: input.workflowId,
+      type: input.type, title: input.title, content: input.content,
+      version: 1, status: "draft", reviewResult: null, createdAt: timestamp, updatedAt: timestamp
+    };
+    this.designDocuments.set(record.id, record);
+    return record;
+  }
+
+  async getDesignDocument(docId: string) { return this.designDocuments.get(docId) ?? null; }
+
+  async listDesignDocuments(projectId: string) {
+    return [...this.designDocuments.values()].filter(d => d.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async updateDesignDocument(input: { id: string; content?: unknown; status?: DesignDocument["status"]; reviewResult?: unknown }) {
+    const doc = this.designDocuments.get(input.id);
+    if (doc) {
+      if (input.content !== undefined) doc.content = input.content;
+      if (input.status !== undefined) doc.status = input.status;
+      if (input.reviewResult !== undefined) doc.reviewResult = input.reviewResult;
+      doc.updatedAt = now();
     }
   }
 
-  async listWorkflowsByProject(projectId: string) {
-    const result = await this.pool.query("select * from workflow_runs where project_id = $1 order by updated_at desc", [
-      projectId
-    ]);
-    return result.rows.map(mapWorkflow);
+  async saveCodingTask(input: { projectId: string; workflowId: string | null; designDocId: string | null; files: CodingTask["files"]; traceability: CodingTask["traceability"]; agentRole: string }) {
+    const record: CodingTask = {
+      id: id("ct"), projectId: input.projectId, workflowId: input.workflowId,
+      designDocId: input.designDocId, files: input.files, traceability: input.traceability,
+      status: "generating", agentRole: input.agentRole, createdAt: now()
+    };
+    this.codingTasks.set(record.id, record);
+    return record;
   }
 
-  async updateWorkflowStage(input: {
-    workflowId: string;
-    currentStage: WorkflowSummary["currentStage"];
-    status: WorkflowSummary["status"];
-  }) {
-    await this.pool.query(
-      `update workflow_runs
-       set current_stage = $2, status = $3, updated_at = now()
-       where id = $1`,
-      [input.workflowId, input.currentStage, input.status]
-    );
+  async getCodingTask(taskId: string) { return this.codingTasks.get(taskId) ?? null; }
+
+  async listCodingTasks(projectId: string) {
+    return [...this.codingTasks.values()].filter(t => t.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async saveRequirementAnalysis(input: {
-    projectId: string;
-    workflowId: string | null;
-    requirementText: string;
-    questions: RequirementQuestion[];
-    reflection: unknown;
-  }) {
-    const result = await this.pool.query(
-      `insert into requirement_analyses
-        (id, project_id, workflow_id, requirement_text, questions, reflection)
-       values ($1, $2, $3, $4, $5, $6)
-       returning *`,
-      [id("ra"), input.projectId, input.workflowId, input.requirementText, JSON.stringify(input.questions), JSON.stringify(input.reflection)]
-    );
-    return mapRequirementAnalysis(result.rows[0]);
+  async updateCodingTask(input: { id: string; status?: CodingTask["status"]; files?: CodingTask["files"]; appliedAt?: string }) {
+    const task = this.codingTasks.get(input.id);
+    if (task) {
+      if (input.status !== undefined) task.status = input.status;
+      if (input.files !== undefined) task.files = input.files;
+      if (input.appliedAt !== undefined) task.appliedAt = input.appliedAt;
+    }
   }
-}
 
-async function migrate(pool: pg.Pool) {
-  await pool.query(`
-    create table if not exists projects (
-      id text primary key,
-      name text not null,
-      description text not null default '',
-      status text not null default 'created',
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
+  async saveTestRun(input: { projectId: string; workflowId: string | null; testPlan: unknown; testCases: TestRun["testCases"]; status: TestRun["status"] }) {
+    const record: TestRun = {
+      id: id("tr"), projectId: input.projectId, workflowId: input.workflowId,
+      testPlan: input.testPlan, testCases: input.testCases, results: [],
+      summary: { total: 0, passed: 0, failed: 0, skipped: 0, error: 0 }, status: input.status, createdAt: now()
+    };
+    this.testRuns.set(record.id, record);
+    return record;
+  }
 
-    create table if not exists workflow_runs (
-      id text primary key,
-      project_id text not null references projects(id) on delete cascade,
-      current_stage text not null,
-      status text not null,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
+  async getTestRun(runId: string) { return this.testRuns.get(runId) ?? null; }
 
-    create table if not exists requirement_analyses (
-      id text primary key,
-      project_id text not null references projects(id) on delete cascade,
-      workflow_id text references workflow_runs(id) on delete set null,
-      requirement_text text not null,
-      questions jsonb not null,
-      reflection jsonb not null,
-      created_at timestamptz not null default now()
-    );
+  async listTestRuns(projectId: string) {
+    return [...this.testRuns.values()].filter(r => r.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
 
-    create index if not exists idx_projects_updated_at on projects(updated_at desc);
-    create index if not exists idx_workflow_runs_project on workflow_runs(project_id);
-    create index if not exists idx_requirement_analyses_project on requirement_analyses(project_id);
-  `);
-}
+  async updateTestRun(input: { id: string; results?: TestRun["results"]; summary?: TestRun["summary"]; status?: TestRun["status"]; analysis?: string; completedAt?: string }) {
+    const run = this.testRuns.get(input.id);
+    if (run) {
+      if (input.results !== undefined) run.results = input.results;
+      if (input.summary !== undefined) run.summary = input.summary;
+      if (input.status !== undefined) run.status = input.status;
+      if (input.analysis !== undefined) run.analysis = input.analysis;
+      if (input.completedAt !== undefined) run.completedAt = input.completedAt;
+    }
+  }
 
-function mapProject(row: Record<string, unknown>): ProjectSummary {
-  return {
-    id: String(row.id),
-    name: String(row.name),
-    description: String(row.description ?? ""),
-    status: row.status as ProjectSummary["status"],
-    createdAt: new Date(row.created_at as string).toISOString(),
-    updatedAt: new Date(row.updated_at as string).toISOString()
-  };
-}
+  async saveCodeReview(input: { projectId: string; workflowId: string | null; codeFiles: string[] }) {
+    const record: CodeReviewRecord = {
+      id: id("rv"), projectId: input.projectId, workflowId: input.workflowId,
+      codeFiles: input.codeFiles, aiReview: [], humanComments: [],
+      status: "pending", finalReport: null, createdAt: now()
+    };
+    this.codeReviews.set(record.id, record);
+    return record;
+  }
 
-function mapWorkflow(row: Record<string, unknown>): WorkflowSummary {
-  return {
-    id: String(row.id),
-    projectId: String(row.project_id),
-    currentStage: row.current_stage as WorkflowSummary["currentStage"],
-    status: row.status as WorkflowSummary["status"],
-    updatedAt: new Date(row.updated_at as string).toISOString()
-  };
-}
+  async getCodeReview(reviewId: string) { return this.codeReviews.get(reviewId) ?? null; }
 
-function mapRequirementAnalysis(row: Record<string, unknown>): RequirementAnalysisRecord {
-  return {
-    id: String(row.id),
-    projectId: String(row.project_id),
-    workflowId: row.workflow_id ? String(row.workflow_id) : null,
-    requirementText: String(row.requirement_text),
-    questions: row.questions as RequirementQuestion[],
-    reflection: row.reflection,
-    createdAt: new Date(row.created_at as string).toISOString()
-  };
+  async listCodeReviews(projectId: string) {
+    return [...this.codeReviews.values()].filter(r => r.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async updateCodeReview(input: { id: string; aiReview?: CodeReviewRecord["aiReview"]; humanComments?: CodeReviewRecord["humanComments"]; status?: CodeReviewRecord["status"]; finalReport?: unknown; finalizedAt?: string }) {
+    const review = this.codeReviews.get(input.id);
+    if (review) {
+      if (input.aiReview !== undefined) review.aiReview = input.aiReview;
+      if (input.humanComments !== undefined) review.humanComments = input.humanComments;
+      if (input.status !== undefined) review.status = input.status;
+      if (input.finalReport !== undefined) review.finalReport = input.finalReport;
+      if (input.finalizedAt !== undefined) review.finalizedAt = input.finalizedAt;
+    }
+  }
+
+  async saveDeployConfig(input: { projectId: string; dockerfile: string; dockerCompose: string; envVars: DeployConfig["envVars"]; buildCommand: string; startCommand: string }) {
+    const timestamp = now();
+    const record: DeployConfig = {
+      id: id("dc"), projectId: input.projectId, dockerfile: input.dockerfile,
+      dockerCompose: input.dockerCompose, envVars: input.envVars,
+      buildCommand: input.buildCommand, startCommand: input.startCommand,
+      status: "draft", createdAt: timestamp, updatedAt: timestamp
+    };
+    this.deployConfigs.set(record.id, record);
+    return record;
+  }
+
+  async getDeployConfig(projectId: string) {
+    for (const c of this.deployConfigs.values()) { if (c.projectId === projectId) return c; }
+    return null;
+  }
+
+  async updateDeployConfig(input: { projectId: string; dockerfile?: string; dockerCompose?: string; envVars?: DeployConfig["envVars"]; buildCommand?: string; startCommand?: string; status?: DeployConfig["status"] }) {
+    const config = await this.getDeployConfig(input.projectId);
+    if (config) {
+      if (input.dockerfile !== undefined) config.dockerfile = input.dockerfile;
+      if (input.dockerCompose !== undefined) config.dockerCompose = input.dockerCompose;
+      if (input.envVars !== undefined) config.envVars = input.envVars;
+      if (input.buildCommand !== undefined) config.buildCommand = input.buildCommand;
+      if (input.startCommand !== undefined) config.startCommand = input.startCommand;
+      if (input.status !== undefined) config.status = input.status;
+      config.updatedAt = now();
+    }
+  }
 }

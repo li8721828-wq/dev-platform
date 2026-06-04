@@ -78,3 +78,128 @@ export const workflowStageLabels: Record<WorkflowStage, string> = {
   PAUSED: "已暂停",
   CANCELLED: "已取消"
 };
+
+// ========== 方案设计 ==========
+export interface DesignDocument {
+  id: string;
+  projectId: string;
+  workflowId: string | null;
+  type: "solution" | "detail_design";
+  title: string;
+  content: unknown;
+  version: number;
+  status: "draft" | "reviewing" | "approved" | "rejected";
+  reviewResult: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ========== 编码任务 ==========
+export interface GeneratedFile {
+  path: string;
+  content: string;
+  language?: string;
+  description?: string;
+}
+
+export interface TraceabilityEntry {
+  requirementId: string;
+  requirementText: string;
+  designSection?: string;
+  codeFiles: string[];
+  testCases?: string[];
+  coverage: "covered" | "partial" | "missing";
+}
+
+export interface CodingTask {
+  id: string;
+  projectId: string;
+  workflowId: string | null;
+  designDocId: string | null;
+  files: GeneratedFile[];
+  traceability: TraceabilityEntry[];
+  status: "generating" | "preview" | "applied" | "rejected" | "failed";
+  agentRole: string;
+  createdAt: string;
+  appliedAt?: string;
+}
+
+// ========== 测试运行 ==========
+export interface TestCase {
+  id: string;
+  name: string;
+  type: "unit" | "integration" | "e2e";
+  description: string;
+  filePath?: string;
+  content?: string;
+}
+
+export interface TestResult {
+  testCaseId: string;
+  status: "passed" | "failed" | "skipped" | "error";
+  duration?: number;
+  message?: string;
+  stackTrace?: string;
+}
+
+export interface TestRun {
+  id: string;
+  projectId: string;
+  workflowId: string | null;
+  testPlan: unknown;
+  testCases: TestCase[];
+  results: TestResult[];
+  summary: { total: number; passed: number; failed: number; skipped: number; error: number };
+  status: "planning" | "generating" | "running" | "completed" | "failed";
+  analysis?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+// ========== 代码审查 ==========
+export interface ReviewIssue {
+  id: string;
+  severity: "critical" | "major" | "minor" | "suggestion";
+  category: "logic" | "security" | "performance" | "style" | "design_consistency" | "error_handling";
+  file: string;
+  line?: number;
+  description: string;
+  suggestion: string;
+}
+
+export interface HumanComment {
+  id: string;
+  reviewer: string;
+  file?: string;
+  line?: number;
+  content: string;
+  resolved: boolean;
+  createdAt: string;
+}
+
+export interface CodeReviewRecord {
+  id: string;
+  projectId: string;
+  workflowId: string | null;
+  codeFiles: string[];
+  aiReview: ReviewIssue[];
+  humanComments: HumanComment[];
+  status: "pending" | "ai_reviewing" | "ai_reviewed" | "human_reviewing" | "finalized";
+  finalReport: unknown;
+  createdAt: string;
+  finalizedAt?: string;
+}
+
+// ========== 部署配置 ==========
+export interface DeployConfig {
+  id: string;
+  projectId: string;
+  dockerfile: string;
+  dockerCompose: string;
+  envVars: Array<{ key: string; value: string; description?: string }>;
+  buildCommand: string;
+  startCommand: string;
+  status: "draft" | "validated" | "deployed";
+  createdAt: string;
+  updatedAt: string;
+}
