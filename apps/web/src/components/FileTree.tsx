@@ -130,7 +130,7 @@ export function FileTree({ projectId, apiBaseUrl, onFileSelect }: FileTreeProps)
       <div className="file-tree-content">
         {tree.length === 0 ? (
           <div className="file-tree-empty">
-            {loading ? "加载中..." : "请先克隆 Git 仓库"}
+            {loading ? "加载中..." : "请先导入项目（Git 克隆或本地路径）"}
           </div>
         ) : (
           tree.map((node) => renderNode(node))

@@ -36,6 +36,7 @@ export interface ProjectSummary {
   name: string;
   description: string;
   status: ProjectStatus;
+  sourcePath?: string;
   createdAt: string;
   updatedAt: string;
 }

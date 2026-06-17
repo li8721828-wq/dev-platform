@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat, symlink, mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const execFileAsync = promisify(execFile);
@@ -212,9 +212,54 @@ export class GitService {
     }
   }
 
+  // 通过符号链接挂载本地项目目录
+  async linkLocal(projectId: string, localPath: string, branch?: string): Promise<{ success: boolean; message: string }> {
+    const repoPath = this.getRepoPath(projectId);
+
+    // 验证本地路径存在且为目录
+    if (!existsSync(localPath)) {
+      return { success: false, message: `路径不存在: ${localPath}` };
+    }
+    try {
+      const stats = await stat(localPath);
+      if (!stats.isDirectory()) {
+        return { success: false, message: `路径不是目录: ${localPath}` };
+      }
+    } catch {
+      return { success: false, message: `无法访问路径: ${localPath}` };
+    }
+
+    // 如果 repoPath 已存在，报错
+    if (existsSync(repoPath)) {
+      return { success: false, message: "项目目录已存在，请先删除或选择其他项目" };
+    }
+
+    try {
+      // 确保父目录存在
+      await mkdir(path.dirname(repoPath), { recursive: true });
+      // 创建符号链接（Windows 需要 junction 类型来链接目录）
+      await symlink(localPath, repoPath, "junction");
+
+      // 如果指定了分支，尝试切换
+      if (branch) {
+        try {
+          await execFileAsync("git", ["checkout", branch], { cwd: repoPath, timeout: 30000 });
+        } catch {
+          // 分支切换失败不影响主流程，可能分支名不对或不是 git 仓库
+          return { success: true, message: `本地项目导入成功，但无法切换到分支 ${branch}（可能不存在）` };
+        }
+      }
+
+      return { success: true, message: "本地项目导入成功" };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, message: `符号链接创建失败: ${errMsg}` };
+    }
+  }
+
   // 检查仓库是否存在
   repoExists(projectId: string): boolean {
     const repoPath = this.getRepoPath(projectId);
-    return existsSync(path.join(repoPath, ".git"));
+    return existsSync(path.join(repoPath, ".git")) || existsSync(repoPath);
   }
 }

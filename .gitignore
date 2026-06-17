@@ -8,6 +8,7 @@ storage/projects/*
 storage/artifacts/*
 storage/logs/*
 storage/patches/*
+storage/data.json
 !storage/projects/.gitkeep
 !storage/artifacts/.gitkeep
 !storage/logs/.gitkeep

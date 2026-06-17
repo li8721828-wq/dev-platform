@@ -2,7 +2,6 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { workflowStageLabels, type ProjectSummary } from "@dev-platform/shared";
 import { FileTree } from "./components/FileTree";
-import { GitImport } from "./components/GitImport";
 import { AiConfig } from "./components/AiConfig";
 import { ClarificationPanel } from "./components/ClarificationPanel";
 import { ReflectionReportView } from "./components/ReflectionReport";
@@ -12,18 +11,17 @@ import { TraceabilityMatrix } from "./components/TraceabilityMatrix";
 import { TestingPanel } from "./components/TestingPanel";
 import { CodeReviewPanel } from "./components/CodeReviewPanel";
 import { DeployConfigPanel } from "./components/DeployConfigPanel";
+import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import "./styles.css";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 type ActiveTab =
-  | "project" | "git" | "requirement" | "clarification" | "reflection"
+  | "project" | "requirement" | "clarification" | "reflection"
   | "solution" | "design" | "code" | "coding" | "testing" | "review" | "deploy" | "settings";
 
 function App() {
   const [projects, setProjects] = React.useState<ProjectSummary[]>([]);
-  const [name, setName] = React.useState("");
-  const [description, setDescription] = React.useState("");
   const [requirementText, setRequirementText] = React.useState("");
   const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
   const [questions, setQuestions] = React.useState<Array<{ id: string; question: string; priority: string; whyNeeded: string }>>([]);
@@ -39,10 +37,46 @@ function App() {
   const [editContent, setEditContent] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
+  // 项目表单状态（合并创建+导入）
+  const [formName, setFormName] = React.useState("");
+  const [formDesc, setFormDesc] = React.useState("");
+  const [formImportType, setFormImportType] = React.useState<"none" | "local" | "git">("none");
+  const [formLocalPath, setFormLocalPath] = React.useState("");
+  const [formGitUrl, setFormGitUrl] = React.useState("");
+  const [formBranch, setFormBranch] = React.useState("");
+  const [formImporting, setFormImporting] = React.useState(false);
+  const [formMsg, setFormMsg] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
+
+
+  // 项目内联文件浏览器
+  const [previewFile, setPreviewFile] = React.useState<{ path: string; content: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+
+  // AI 项目分析
+  const [aiAnalyzing, setAiAnalyzing] = React.useState(false);
+  const [aiDescription, setAiDescription] = React.useState<string | null>(null);
+
   React.useEffect(() => { void loadProjects(); }, []);
   React.useEffect(() => { if (selectedProjectId) void loadWorkflows(selectedProjectId); }, [selectedProjectId]);
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0];
+
+  async function analyzeProject(projectId: string) {
+    setAiAnalyzing(true); setAiDescription(null);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/projects/${projectId}/analyze-project`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setAiDescription(data.description);
+      } else {
+        setAiDescription(`分析失败: ${data.message || "未知错误"}`);
+      }
+    } catch {
+      setAiDescription("AI 分析请求失败，请确认已配置 AI 提供商。");
+    } finally {
+      setAiAnalyzing(false);
+    }
+  }
 
   async function loadProjects() {
     try {
@@ -68,19 +102,40 @@ function App() {
 
   async function createProject(event: React.FormEvent) {
     event.preventDefault();
-    setLoading(true); setError(null);
+    setFormImporting(true); setFormMsg(null);
     try {
+      const body: Record<string, string> = { name: formName, description: formDesc };
+      if (formLocalPath) { body.localPath = formLocalPath; if (formBranch) body.gitBranch = formBranch; }
+      if (formGitUrl) { body.gitUrl = formGitUrl; if (formBranch) body.gitBranch = formBranch; }
+
       const response = await fetch(`${apiBaseUrl}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify(body)
       });
-      if (!response.ok) throw new Error("create failed");
-      setName(""); setDescription("");
+      const data = await response.json();
+      if (!response.ok) {
+        setFormMsg({ type: "error", text: data.issues?.[0]?.message || data.message || "创建失败" });
+        return;
+      }
+      if (data.importWarning) {
+        setFormMsg({ type: "error", text: `项目已创建，但导入失败: ${data.importWarning}` });
+      } else if (formLocalPath) {
+        setFormMsg({ type: "success", text: "项目创建并导入本地目录成功！" });
+      } else if (formGitUrl) {
+        setFormMsg({ type: "success", text: "项目创建并克隆 Git 仓库成功！" });
+      } else {
+        setFormMsg({ type: "success", text: "项目创建成功！" });
+      }
+      setFormName(""); setFormDesc(""); setFormLocalPath(""); setFormGitUrl(""); setFormBranch(""); setFormImportType("none");
       await loadProjects();
-    } catch { setError("创建项目失败，请检查后端服务。"); }
-    finally { setLoading(false); }
+    } catch {
+      setFormMsg({ type: "error", text: "网络错误，请重试" });
+    } finally {
+      setFormImporting(false);
+    }
   }
+
 
   async function analyzeRequirement() {
     if (!selectedProject) { setError("请先创建项目。"); return; }
@@ -99,6 +154,21 @@ function App() {
       setActiveTab("clarification");
     } catch (err) { setError(err instanceof Error ? err.message : "需求分析失败，请稍后重试。"); }
     finally { setLoading(false); }
+  }
+
+  async function previewFileFromTree(filePath: string) {
+    if (!selectedProject) return;
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/projects/${selectedProject.id}/files?path=${encodeURIComponent(filePath)}`);
+      if (!res.ok) throw new Error("file not found");
+      const data = await res.json();
+      setPreviewFile({ path: filePath, content: data.content });
+    } catch {
+      setPreviewFile({ path: filePath, content: "// 无法加载文件内容" });
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function openFileFromTree(filePath: string) {
@@ -131,7 +201,6 @@ function App() {
 
   const tabs: { id: ActiveTab; label: string; icon: string }[] = [
     { id: "project", label: "项目", icon: "📁" },
-    { id: "git", label: "Git", icon: "🔀" },
     { id: "requirement", label: "需求", icon: "📝" },
     { id: "clarification", label: "澄清", icon: "💬" },
     { id: "reflection", label: "反思", icon: "🔍" },
@@ -188,39 +257,147 @@ function App() {
           {activeTab === "project" && (
             <div className="tab-panel">
               <section className="panel">
-                <div className="panel-heading"><h2>创建项目</h2><span>{projects.length} 个项目</span></div>
-                <form className="form-grid" onSubmit={createProject}>
-                  <label>项目名称<input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 order-service" required /></label>
-                  <label>项目说明<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="说明项目用途" /></label>
-                  <button type="submit" disabled={loading}>{loading ? "处理中" : "创建项目"}</button>
+                <div className="panel-heading"><h2>新建项目</h2><span>{projects.length} 个项目</span></div>
+                <p style={{ color: "#667085", fontSize: 13, margin: "0 0 12px 0" }}>
+                  创建项目来管理你的代码。可以同时关联本地目录或 Git 仓库，AI 将能读取和分析你的代码文件。
+                </p>
+                <form className="form-stack" onSubmit={createProject}>
+                  <div className="form-row">
+                    <label>项目名称 *
+                      <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="例如 order-service" required />
+                    </label>
+                    <label>项目说明
+                      <input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="说明项目用途（可选）" />
+                    </label>
+                    <label>导入方式
+                      <select value={formImportType} onChange={(e) => { setFormImportType(e.target.value as "none" | "local" | "git"); setFormMsg(null); }}>
+                        <option value="none">仅创建项目</option>
+                        <option value="local">本地路径导入</option>
+                        <option value="git">Git 克隆导入</option>
+                      </select>
+                    </label>
+                  </div>
+                  {formImportType === "local" && (
+                    <div className="form-row">
+                      <label>本地项目路径 *
+                        <input
+                          value={formLocalPath}
+                          onChange={(e) => { setFormLocalPath(e.target.value); setFormMsg(null); }}
+                          placeholder="例如 D:\projects\my-app"
+                          required
+                        />
+                      </label>
+                      <label>分支
+                        <input
+                          value={formBranch}
+                          onChange={(e) => setFormBranch(e.target.value)}
+                          placeholder="默认当前分支"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {formImportType === "git" && (
+                    <div className="form-row">
+                      <label>Git 仓库地址 *
+                        <input
+                          value={formGitUrl}
+                          onChange={(e) => { setFormGitUrl(e.target.value); setFormMsg(null); }}
+                          placeholder="https://github.com/user/repo.git"
+                          required
+                        />
+                      </label>
+                      <label>分支
+                        <input
+                          value={formBranch}
+                          onChange={(e) => setFormBranch(e.target.value)}
+                          placeholder="默认 main"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <button type="submit" disabled={formImporting || !formName}>
+                    {formImporting ? "处理中..." : formImportType !== "none" ? "创建并导入" : "创建项目"}
+                  </button>
                 </form>
+                {formMsg && (
+                  <div className={`alert ${formMsg.type === "error" ? "" : "alert-success"}`} style={{ marginTop: 8, color: formMsg.type === "error" ? "#b42318" : "#167a5b" }}>
+                    {formMsg.text}
+                  </div>
+                )}
               </section>
+
               <section className="panel">
                 <div className="panel-heading"><h2>项目列表</h2></div>
                 <div className="table">
                   {projects.length === 0 ? (
-                    <div className="empty">还没有项目。</div>
+                    <div className="empty">还没有项目，请在上方创建一个。</div>
                   ) : (
                     projects.map((project) => (
                       <button className={`project-row ${selectedProject?.id === project.id ? "selected" : ""}`}
-                        key={project.id} onClick={() => setSelectedProjectId(project.id)}>
-                        <span><strong>{project.name}</strong><small>{project.description || "暂无说明"}</small></span>
+                        key={project.id} onClick={() => { setSelectedProjectId(project.id); setPreviewFile(null); setAiDescription(null); }}>
+                        <span>
+                          <strong>{project.name}</strong>
+                          <small>{project.description || "暂无说明"}</small>
+                        </span>
                         <em>{project.status}</em>
                       </button>
                     ))
                   )}
                 </div>
               </section>
-            </div>
-          )}
 
-          {/* Git */}
-          {activeTab === "git" && selectedProject && (
-            <div className="tab-panel">
-              <section className="panel">
-                <div className="panel-heading"><h2>Git 仓库导入</h2></div>
-                <GitImport projectId={selectedProject.id} apiBaseUrl={apiBaseUrl} onImportSuccess={() => {}} />
-              </section>
+              {selectedProject && (
+                <section className="panel">
+                  <div className="panel-heading">
+                    <h2>AI 项目介绍</h2>
+                    <button className="btn-small" onClick={() => analyzeProject(selectedProject.id)} disabled={aiAnalyzing}>
+                      {aiAnalyzing ? "分析中..." : aiDescription ? "重新分析" : "AI 分析项目"}
+                    </button>
+                  </div>
+                  {aiAnalyzing ? (
+                    <div className="ai-analyzing">
+                      <span className="ai-spinner"></span>
+                      AI 正在分析项目文件，请稍候...
+                    </div>
+                  ) : aiDescription ? (
+                    <div className="ai-description">
+                      <MarkdownRenderer content={aiDescription} />
+                    </div>
+                  ) : (
+                    <div className="ai-empty">点击右侧按钮，让 AI 分析项目并生成介绍文档</div>
+                  )}
+                </section>
+              )}
+
+              {selectedProject && (
+                <section className="panel">
+                  <div className="panel-heading">
+                    <h2>项目文件</h2>
+                    {previewFile && (
+                      <button className="btn-small" onClick={() => { openFileFromTree(previewFile.path); }}>
+                        编辑此文件
+                      </button>
+                    )}
+                  </div>
+                  <div className="inline-file-browser">
+                    <div className="inline-file-tree">
+                      <FileTree projectId={selectedProject.id} apiBaseUrl={apiBaseUrl} onFileSelect={previewFileFromTree} />
+                    </div>
+                    <div className="inline-file-preview">
+                      {previewLoading ? (
+                        <div className="inline-file-empty">加载中...</div>
+                      ) : previewFile ? (
+                        <>
+                          <div className="inline-file-path">{previewFile.path}</div>
+                          <pre className="inline-file-content">{previewFile.content}</pre>
+                        </>
+                      ) : (
+                        <div className="inline-file-empty">点击左侧文件查看内容</div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

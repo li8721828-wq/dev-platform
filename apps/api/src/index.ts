@@ -13,6 +13,7 @@ import { ReviewService } from "./review/review-service.js";
 import { DeployService } from "./deploy/deploy-service.js";
 import { createAiClient, getProvidersInfo, type AiProviderInstance } from "./ai/index.js";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,9 @@ const paramValue = (value: string | string[]) => (Array.isArray(value) ? value[0
 const createProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional().default(""),
-  gitUrl: z.string().optional()
+  gitUrl: z.string().optional(),
+  gitBranch: z.string().optional(),
+  localPath: z.string().optional()
 });
 
 const requirementAnalyzeSchema = z.object({
@@ -42,6 +45,10 @@ const requirementAnalyzeSchema = z.object({
 const gitCloneSchema = z.object({
   gitUrl: z.string().min(1),
   branch: z.string().optional()
+});
+
+const importLocalSchema = z.object({
+  localPath: z.string().min(1)
 });
 
 const clarificationAnswerSchema = z.object({
@@ -256,6 +263,36 @@ app.post(
       return;
     }
     const result = await store.createProject(parsed.data);
+
+    // 如果提供了本地路径，自动导入
+    if (parsed.data.localPath) {
+      const linkResult = await gitService.linkLocal(result.project.id, parsed.data.localPath, parsed.data.gitBranch);
+      if (linkResult.success) {
+        await store.updateProjectGitInfo(result.project.id, {
+          repoPath: gitService.getRepoPath(result.project.id),
+          defaultBranch: parsed.data.gitBranch
+        });
+      } else {
+        res.status(201).json({ ...result, importWarning: linkResult.message });
+        return;
+      }
+    }
+
+    // 如果提供了 Git URL，自动克隆
+    if (parsed.data.gitUrl && !parsed.data.localPath) {
+      const cloneResult = await gitService.clone(result.project.id, parsed.data.gitUrl, parsed.data.gitBranch);
+      if (cloneResult.success) {
+        await store.updateProjectGitInfo(result.project.id, {
+          gitUrl: parsed.data.gitUrl,
+          repoPath: gitService.getRepoPath(result.project.id),
+          defaultBranch: parsed.data.gitBranch
+        });
+      } else {
+        res.status(201).json({ ...result, importWarning: `克隆失败: ${cloneResult.message}` });
+        return;
+      }
+    }
+
     res.status(201).json(result);
   })
 );
@@ -285,6 +322,246 @@ app.post(
     });
 
     res.json(result);
+  })
+);
+
+// ========== 本地路径导入 ==========
+app.post(
+  "/api/projects/:projectId/import-local",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const project = await store.getProject(projectId);
+    if (!project) {
+      res.status(404).json({ error: "project_not_found" });
+      return;
+    }
+
+    const parsed = importLocalSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
+      return;
+    }
+
+    const result = await gitService.linkLocal(projectId, parsed.data.localPath);
+    if (!result.success) {
+      res.status(400).json({ error: "import_failed", message: result.message });
+      return;
+    }
+
+    // 更新项目 Git 信息（复用此字段存储 repoPath）
+    await store.updateProjectGitInfo(projectId, {
+      repoPath: gitService.getRepoPath(projectId)
+    });
+
+    res.json(result);
+  })
+);
+
+// ========== AI 项目分析 ==========
+app.post(
+  "/api/projects/:projectId/analyze-project",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const project = await store.getProject(projectId);
+    if (!project) {
+      res.status(404).json({ error: "project_not_found" });
+      return;
+    }
+
+    if (!gitService.repoExists(projectId)) {
+      res.status(400).json({ error: "no_code", message: "请先导入项目代码" });
+      return;
+    }
+
+    const { client: aiClient, error: aiError } = await getAiClient();
+    if (!aiClient) {
+      res.status(503).json({ error: "ai_not_configured", message: aiError });
+      return;
+    }
+
+    // 读取文件树
+    const tree = await gitService.getFileTree(projectId, "", 4);
+
+    // 扁平化文件树，收集所有文件
+    const allFiles: Array<{ name: string; path: string }> = [];
+    function flatten(nodes: Array<{ name: string; path: string; type: string; children?: any[] }>) {
+      for (const node of nodes) {
+        if (node.type === "file") allFiles.push(node);
+        else if (node.children) flatten(node.children);
+      }
+    }
+    flatten(tree as any);
+
+    // 选择关键文件读取
+    const keyFileNames = [
+      "README.md", "readme.md", "README.txt",
+      "package.json", "Cargo.toml", "go.mod", "pom.xml", "build.gradle",
+      "requirements.txt", "Pipfile", "pyproject.toml",
+      "docker-compose.yml", "Dockerfile"
+    ];
+    const sourceExtensions = [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".java"];
+
+    const filesToRead: Array<{ name: string; path: string }> = [];
+
+    // 优先读取配置文件和 README
+    for (const keyName of keyFileNames) {
+      const found = allFiles.find(f => f.name === keyName);
+      if (found && filesToRead.length < 8) filesToRead.push(found);
+    }
+
+    // 再读取一些源码文件
+    const srcFiles = allFiles
+      .filter(f => sourceExtensions.some(ext => f.name.endsWith(ext)))
+      .slice(0, 10);
+    for (const f of srcFiles) {
+      if (filesToRead.length < 18) filesToRead.push(f);
+    }
+
+    // 读取文件内容
+    let fileContexts = "";
+    for (const file of filesToRead) {
+      try {
+        const content = await gitService.readFileContent(projectId, file.path);
+        if (content) {
+          const truncated = content.content.length > 2000
+            ? content.content.slice(0, 2000) + "\n... (truncated)"
+            : content.content;
+          fileContexts += `\n--- ${file.path} ---\n${truncated}\n`;
+        }
+      } catch { /* skip */ }
+    }
+
+    const treeText = JSON.stringify(tree, null, 2).slice(0, 5000);
+
+    const messages = [
+      {
+        role: "system" as const,
+        content: `你是一个资深软件架构师。请根据提供的项目文件结构和关键文件内容，生成一份专业、详细的项目介绍文档。
+
+**输出格式要求：**
+- 使用标准 Markdown 格式
+- 用二级标题（##）分隔各个部分
+- 使用列表、表格、代码块等 Markdown 语法来增强可读性
+
+**架构图规范（用 \`\`\`architecture-json 代码块）：**
+必须生成一个 \`\`\`architecture-json 代码块。
+
+**核心原则：这必须是代码架构图，不是概念架构图。** 节点名称必须来自实际代码中的目录名、模块名、文件名、类名，不要使用“展示层”“服务层”这类抽象名称。
+
+层名称应反映实际代码的分组方式，例如：
+- “前端页面”、“React 组件”、“路由与入口”
+- “API 路由”、“核心服务”、“中间件”
+- “数据模型”、“存储引擎”、“缓存层”
+- “构建工具”、“部署配置”、“CI/CD”
+
+**JSON 格式：**
+\`\`\`architecture-json
+{
+  "layers": [
+    {
+      "name": "前端入口",
+      "color": "#6366f1",
+      "nodes": [
+        { "id": "main_tsx", "label": "main.tsx", "type": "module" },
+        { "id": "app", "label": "App.tsx", "type": "module" }
+      ]
+    },
+    {
+      "name": "核心服务",
+      "color": "#0891b2",
+      "nodes": [
+        { "id": "user_svc", "label": "UserService", "type": "service" },
+        { "id": "auth_mw", "label": "AuthMiddleware", "type": "gateway" }
+      ]
+    },
+    {
+      "name": "数据模型",
+      "color": "#059669",
+      "nodes": [
+        { "id": "user_model", "label": "UserModel", "type": "database" },
+        { "id": "store", "label": "MemoryStore", "type": "database" }
+      ]
+    }
+  ],
+  "connections": [
+    { "from": "main_tsx", "to": "app", "label": "渲染" },
+    { "from": "app", "to": "user_svc", "label": "fetch" },
+    { "from": "auth_mw", "to": "user_svc", "label": "校验" },
+    { "from": "user_svc", "to": "user_model", "label": "查询" },
+    { "from": "user_svc", "to": "store", "label": "读写" }
+  ]
+}
+\`\`\`
+
+**规则：**
+- 必须有 3-5 层，每层 2-5 个节点，总计 10-18 个节点
+- 每层颜色不同（推荐：#6366f1 紫, #0891b2 青, #059669 绿, #d97706 橙, #dc2626 红, #7c3aed 紫蓝）
+- \`type\`：\`service\`(服务) / \`module\`(模块) / \`gateway\`(网关/中间件) / \`database\`(数据/存储) / \`infra\`(基础设施) / \`external\`(外部服务)
+- **节点名称规则（严格遵守）：**
+  - 名称必须来自实际代码：目录名、文件名、类名、模块名
+  - label 最多 15 个字符，超长名称请截断或使用缩写（如 UserService、AuthMW、main.tsx）
+  - 不要用“展示层”“服务层”等抽象名称作为节点
+- **连线规则（严格遵守）：**
+  - 总连线数控制在 6-10 条，只展示核心数据流
+  - 只允许相邻层连接，绝对禁止跨层（如第 1 层不能直接连第 3 层）
+  - 每个节点出线不超过 2 条
+  - 标签 1-4 个字，如「HTTP」「fetch」「import」「ORM」
+  - 允许同层内节点连接（虚线样式）
+  - 禁止重复连线
+- 根据实际代码分析，不要生搬硬套示例
+
+**文档结构：**
+
+## 📦 项目概述
+用 3-5 句话详细描述项目的核心用途、目标用户、解决的核心问题和主要价值。
+
+## 🛠️ 技术栈
+用表格形式详细列出（包含分类、技术名称、用途三列）：
+| 分类 | 技术 | 用途 |
+|------|------|------|
+列出所有能识别到的技术、框架、工具和关键依赖。
+
+## 🏗️ 项目架构
+先输出 \`\`\`architecture-json 代码块，然后在图表下方用文字详细说明：
+- 各代码分组的职责和包含的实际模块
+- 模块间的依赖关系、数据流向和通信方式（结合代码中的 import/require 关系）
+- 关键设计模式和架构决策（结合具体文件说明）
+
+## ⚡ 核心功能
+用列表详细说明每个主要功能模块，包括：
+- 模块名称
+- 功能描述（2-3 句话）
+- 关键文件/目录
+
+## 📁 目录结构
+用树形结构说明主要目录和文件的用途，对关键文件补充简要说明。
+
+**注意事项：**
+- 内容要专业、准确、详尽
+- 不要猜测，只根据实际提供的信息分析
+- 如果某些信息无法确定，标注「未知」并说明原因
+- 直接输出 Markdown，不要包裹在代码块中`
+      },
+      {
+        role: "user" as const,
+        content: `项目名称：${project.name}
+项目说明：${project.description || "无"}
+
+目录结构：
+${treeText}
+
+关键文件内容：
+${fileContexts || "无法读取文件内容"}`
+      }
+    ];
+
+    try {
+      const aiResponse = await aiClient.chat(messages, { temperature: 0.3, maxTokens: 4000 });
+      res.json({ description: aiResponse.content });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: "ai_analysis_failed", message: `AI 分析失败: ${errMsg}` });
+    }
   })
 );
 

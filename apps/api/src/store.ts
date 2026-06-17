@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import type { ProjectSummary, RequirementQuestion, WorkflowSummary, DesignDocument, CodingTask, TestRun, CodeReviewRecord, DeployConfig } from "@dev-platform/shared";
 
 export interface RequirementAnalysisRecord {
@@ -150,12 +152,16 @@ export interface AppStore {
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${randomUUID()}`;
 
-export async function createStore(): Promise<AppStore> {
-  return new MemoryStore();
+export async function createStore(dataFile?: string): Promise<AppStore> {
+  const store = new MemoryStore();
+  const file = dataFile ?? process.env.STORE_DATA_FILE ?? "storage/data.json";
+  await store.hydrate(file);
+  return store;
 }
 
 class MemoryStore implements AppStore {
   kind: "memory" = "memory";
+  private dataFile = "";
   private projects = new Map<string, ProjectSummary>();
   private workflows = new Map<string, WorkflowSummary>();
   private analyses = new Map<string, RequirementAnalysisRecord>();
@@ -168,6 +174,70 @@ class MemoryStore implements AppStore {
   private testRuns = new Map<string, TestRun>();
   private codeReviews = new Map<string, CodeReviewRecord>();
   private deployConfigs = new Map<string, DeployConfig>();
+
+  // 从 JSON 文件加载数据
+  async hydrate(file: string) {
+    this.dataFile = file;
+    if (!existsSync(file)) return;
+    try {
+      const raw = readFileSync(file, "utf-8");
+      const data = JSON.parse(raw) as {
+        projects?: [string, ProjectSummary][];
+        workflows?: [string, WorkflowSummary][];
+        analyses?: [string, RequirementAnalysisRecord][];
+        clarificationRounds?: [string, ClarificationRound][];
+        reflectionReports?: [string, ReflectionReportRecord][];
+        aiProviders?: [string, AiProviderRecord][];
+        projectGitInfo?: [string, GitProjectInfo][];
+        designDocuments?: [string, DesignDocument][];
+        codingTasks?: [string, CodingTask][];
+        testRuns?: [string, TestRun][];
+        codeReviews?: [string, CodeReviewRecord][];
+        deployConfigs?: [string, DeployConfig][];
+      };
+      if (data.projects) this.projects = new Map(data.projects);
+      if (data.workflows) this.workflows = new Map(data.workflows);
+      if (data.analyses) this.analyses = new Map(data.analyses);
+      if (data.clarificationRounds) this.clarificationRounds = new Map(data.clarificationRounds);
+      if (data.reflectionReports) this.reflectionReports = new Map(data.reflectionReports);
+      if (data.aiProviders) this.aiProviders = new Map(data.aiProviders);
+      if (data.projectGitInfo) this.projectGitInfo = new Map(data.projectGitInfo);
+      if (data.designDocuments) this.designDocuments = new Map(data.designDocuments);
+      if (data.codingTasks) this.codingTasks = new Map(data.codingTasks);
+      if (data.testRuns) this.testRuns = new Map(data.testRuns);
+      if (data.codeReviews) this.codeReviews = new Map(data.codeReviews);
+      if (data.deployConfigs) this.deployConfigs = new Map(data.deployConfigs);
+      console.log(`Store hydrated from ${file} (${this.projects.size} projects, ${this.aiProviders.size} AI providers)`);
+    } catch (e) {
+      console.error(`Failed to hydrate store from ${file}:`, e);
+    }
+  }
+
+  // 持久化到 JSON 文件
+  private persist() {
+    if (!this.dataFile) return;
+    try {
+      const dir = dirname(this.dataFile);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      const data = {
+        projects: [...this.projects.entries()],
+        workflows: [...this.workflows.entries()],
+        analyses: [...this.analyses.entries()],
+        clarificationRounds: [...this.clarificationRounds.entries()],
+        reflectionReports: [...this.reflectionReports.entries()],
+        aiProviders: [...this.aiProviders.entries()],
+        projectGitInfo: [...this.projectGitInfo.entries()],
+        designDocuments: [...this.designDocuments.entries()],
+        codingTasks: [...this.codingTasks.entries()],
+        testRuns: [...this.testRuns.entries()],
+        codeReviews: [...this.codeReviews.entries()],
+        deployConfigs: [...this.deployConfigs.entries()],
+      };
+      writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
+    } catch (e) {
+      console.error(`Failed to persist store to ${this.dataFile}:`, e);
+    }
+  }
 
   async listProjects() {
     return [...this.projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -190,12 +260,14 @@ class MemoryStore implements AppStore {
     if (input.gitUrl) this.projectGitInfo.set(project.id, { gitUrl: input.gitUrl });
     this.projects.set(project.id, project);
     this.workflows.set(workflow.id, workflow);
+    this.persist();
     return { project, workflow };
   }
 
   async updateProjectGitInfo(projectId: string, info: GitProjectInfo) {
     const existing = this.projectGitInfo.get(projectId) ?? {};
     this.projectGitInfo.set(projectId, { ...existing, ...info });
+    this.persist();
   }
 
   async listWorkflowsByProject(projectId: string) {
@@ -208,6 +280,7 @@ class MemoryStore implements AppStore {
       workflow.currentStage = input.currentStage;
       workflow.status = input.status;
       workflow.updatedAt = now();
+      this.persist();
     }
   }
 
@@ -217,6 +290,7 @@ class MemoryStore implements AppStore {
       requirementText: input.requirementText, questions: input.questions, reflection: input.reflection, createdAt: now()
     };
     this.analyses.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -226,12 +300,13 @@ class MemoryStore implements AppStore {
       roundNo: input.roundNo, questions: input.questions, answers: input.answers, status: input.status, createdAt: now()
     };
     this.clarificationRounds.set(record.id, record);
+    this.persist();
     return record;
   }
 
   async updateClarificationRound(input: { id: string; answers: Array<{ questionId: string; answer: string }>; status: ClarificationRound["status"] }) {
     const record = this.clarificationRounds.get(input.id);
-    if (record) { record.answers = input.answers; record.status = input.status; }
+    if (record) { record.answers = input.answers; record.status = input.status; this.persist(); }
   }
 
   async listClarificationRounds(projectId: string) {
@@ -247,6 +322,7 @@ class MemoryStore implements AppStore {
       consistencyCheck: input.consistencyCheck, evidence: input.evidence, nextAction: input.nextAction, summary: input.summary, createdAt: now()
     };
     this.reflectionReports.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -263,6 +339,7 @@ class MemoryStore implements AppStore {
       baseUrl: input.baseUrl, model: input.model, isActive: input.isActive, createdAt: now()
     };
     this.aiProviders.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -277,14 +354,17 @@ class MemoryStore implements AppStore {
 
   async deleteAiProvider(id: string) {
     this.aiProviders.delete(id);
+    this.persist();
   }
 
   async activateAiProvider(id: string) {
     for (const p of this.aiProviders.values()) p.isActive = p.id === id;
+    this.persist();
   }
 
   async deactivateAllAiProviders() {
     for (const p of this.aiProviders.values()) p.isActive = false;
+    this.persist();
   }
 
   async saveDesignDocument(input: { projectId: string; workflowId: string | null; type: DesignDocument["type"]; title: string; content: unknown }) {
@@ -295,6 +375,7 @@ class MemoryStore implements AppStore {
       version: 1, status: "draft", reviewResult: null, createdAt: timestamp, updatedAt: timestamp
     };
     this.designDocuments.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -311,6 +392,7 @@ class MemoryStore implements AppStore {
       if (input.status !== undefined) doc.status = input.status;
       if (input.reviewResult !== undefined) doc.reviewResult = input.reviewResult;
       doc.updatedAt = now();
+      this.persist();
     }
   }
 
@@ -321,6 +403,7 @@ class MemoryStore implements AppStore {
       status: "generating", agentRole: input.agentRole, createdAt: now()
     };
     this.codingTasks.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -336,6 +419,7 @@ class MemoryStore implements AppStore {
       if (input.status !== undefined) task.status = input.status;
       if (input.files !== undefined) task.files = input.files;
       if (input.appliedAt !== undefined) task.appliedAt = input.appliedAt;
+      this.persist();
     }
   }
 
@@ -346,6 +430,7 @@ class MemoryStore implements AppStore {
       summary: { total: 0, passed: 0, failed: 0, skipped: 0, error: 0 }, status: input.status, createdAt: now()
     };
     this.testRuns.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -363,6 +448,7 @@ class MemoryStore implements AppStore {
       if (input.status !== undefined) run.status = input.status;
       if (input.analysis !== undefined) run.analysis = input.analysis;
       if (input.completedAt !== undefined) run.completedAt = input.completedAt;
+      this.persist();
     }
   }
 
@@ -373,6 +459,7 @@ class MemoryStore implements AppStore {
       status: "pending", finalReport: null, createdAt: now()
     };
     this.codeReviews.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -390,6 +477,7 @@ class MemoryStore implements AppStore {
       if (input.status !== undefined) review.status = input.status;
       if (input.finalReport !== undefined) review.finalReport = input.finalReport;
       if (input.finalizedAt !== undefined) review.finalizedAt = input.finalizedAt;
+      this.persist();
     }
   }
 
@@ -402,6 +490,7 @@ class MemoryStore implements AppStore {
       status: "draft", createdAt: timestamp, updatedAt: timestamp
     };
     this.deployConfigs.set(record.id, record);
+    this.persist();
     return record;
   }
 
@@ -420,6 +509,7 @@ class MemoryStore implements AppStore {
       if (input.startCommand !== undefined) config.startCommand = input.startCommand;
       if (input.status !== undefined) config.status = input.status;
       config.updatedAt = now();
+      this.persist();
     }
   }
 }
