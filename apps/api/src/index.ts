@@ -12,6 +12,7 @@ import { TestingService } from "./testing/testing-service.js";
 import { ReviewService } from "./review/review-service.js";
 import { DeployService } from "./deploy/deploy-service.js";
 import { createAiClient, getProvidersInfo, type AiProviderInstance } from "./ai/index.js";
+import { FileReaderService } from "./requirement/file-reader-service.js";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,6 +24,7 @@ const port = Number(process.env.API_PORT ?? 3001);
 const app = express();
 const store = await createStore();
 const gitService = new GitService(storageRoot);
+const fileReaderService = new FileReaderService();
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
@@ -40,6 +42,11 @@ const createProjectSchema = z.object({
 
 const requirementAnalyzeSchema = z.object({
   requirementText: z.string().min(1)
+});
+
+const requirementMaterialSchema = z.object({
+  type: z.enum(["requirement", "reference"]),
+  paths: z.array(z.string().min(1)).min(1)
 });
 
 const gitCloneSchema = z.object({
@@ -700,6 +707,339 @@ app.post(
       canStartDevelopment: result.canStartDevelopment,
       summary: result.summary
     });
+  })
+);
+
+// ========== 需求材料管理 ==========
+// 添加材料路径
+app.post(
+  "/api/projects/:projectId/requirement-materials",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const project = await store.getProject(projectId);
+    if (!project) {
+      res.status(404).json({ error: "project_not_found" });
+      return;
+    }
+
+    const parsed = requirementMaterialSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
+      return;
+    }
+
+    const { type, paths } = parsed.data;
+
+    // 读取文件
+    const files = await fileReaderService.readPaths(paths);
+
+    // 转换为材料记录
+    const materials = files.map(f => ({
+      id: `mat_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      type,
+      filePath: f.path,
+      fileName: f.name,
+      format: f.format,
+      status: f.format === "error" ? "error" as const : "success" as const,
+      contentPreview: f.content.substring(0, 5000),
+      error: f.format === "error" ? f.content : undefined,
+      addedAt: new Date().toISOString()
+    }));
+
+    await store.saveRequirementMaterials(projectId, materials);
+    res.json({ materials });
+  })
+);
+
+// 获取材料列表
+app.get(
+  "/api/projects/:projectId/requirement-materials",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materials = await store.listRequirementMaterials(projectId);
+    res.json({ materials });
+  })
+);
+
+// 删除材料
+app.delete(
+  "/api/projects/:projectId/requirement-materials/:materialId",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    await store.deleteRequirementMaterial(projectId, materialId);
+    res.json({ success: true });
+  })
+);
+
+// 读取材料完整内容
+app.get(
+  "/api/projects/:projectId/requirement-materials/:materialId/content",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    const materials = await store.listRequirementMaterials(projectId);
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      res.status(404).json({ error: "material_not_found" });
+      return;
+    }
+
+    // 重新读取文件获取完整内容
+    const files = await fileReaderService.readPaths([material.filePath]);
+    const file = files[0];
+    if (!file || file.format === "error") {
+      res.status(400).json({ error: "file_read_error", message: file?.content || "无法读取文件" });
+      return;
+    }
+
+    res.json({ content: file.content, fileName: file.name, format: file.format, size: file.size, contentType: file.contentType || "text" });
+  })
+);
+
+// PDF 文件流传输（用于 iframe 预览）
+app.get(
+  "/api/projects/:projectId/requirement-materials/:materialId/raw",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    const materials = await store.listRequirementMaterials(projectId);
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      res.status(404).json({ error: "material_not_found" });
+      return;
+    }
+
+    const ext = path.extname(material.filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      ".pdf": "application/pdf",
+      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".svg": "image/svg+xml"
+    };
+
+    const mime = mimeTypes[ext] || "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(material.fileName)}"`);
+    const { createReadStream } = await import("node:fs");
+    createReadStream(material.filePath).pipe(res);
+  })
+);
+
+// 获取材料中嵌入的文件列表
+app.get(
+  "/api/projects/:projectId/requirement-materials/:materialId/embedded",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    const materials = await store.listRequirementMaterials(projectId);
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      res.status(404).json({ error: "material_not_found" });
+      return;
+    }
+
+    const ext = path.extname(material.filePath).toLowerCase();
+    if (ext !== ".docx" && ext !== ".doc") {
+      res.json({ embedded: [] });
+      return;
+    }
+
+    try {
+      const AdmZip = (await import("adm-zip")).default;
+      const cfb = await import("cfb");
+      const zip = new AdmZip(material.filePath);
+      const entries = zip.getEntries().filter(e => !e.isDirectory && e.entryName.startsWith("word/embeddings/") && !e.entryName.endsWith(".rels"));
+
+      const embedded = [];
+      for (let i = 0; i < entries.length; i++) {
+        const result = await fileReaderService.extractEmbeddedFileData(material.filePath, i);
+        if (result) {
+          embedded.push({ index: i, fileName: result.fileName, format: result.format, size: result.data.length });
+        }
+      }
+
+      res.json({ embedded });
+    } catch (err) {
+      res.status(500).json({ error: "extract_failed", message: String(err) });
+    }
+  })
+);
+
+// 下载嵌入的文件
+app.get(
+  "/api/projects/:projectId/requirement-materials/:materialId/embedded/:index",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    const embedIdx = parseInt(paramValue(req.params.index), 10);
+    const materials = await store.listRequirementMaterials(projectId);
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      res.status(404).json({ error: "material_not_found" });
+      return;
+    }
+
+    const result = await fileReaderService.extractEmbeddedFileData(material.filePath, embedIdx);
+    if (!result) {
+      res.status(404).json({ error: "embedded_not_found" });
+      return;
+    }
+
+    res.setHeader("Content-Type", result.mime);
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(result.fileName)}"`);
+    res.send(result.data);
+  })
+);
+
+// 嵌入文件在线预览（Excel 转 HTML 表格）
+app.get(
+  "/api/projects/:projectId/requirement-materials/:materialId/embedded/:index/preview",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const materialId = paramValue(req.params.materialId);
+    const embedIdx = parseInt(paramValue(req.params.index), 10);
+    const materials = await store.listRequirementMaterials(projectId);
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      res.status(404).json({ error: "material_not_found" });
+      return;
+    }
+
+    const extracted = await fileReaderService.extractEmbeddedFileData(material.filePath, embedIdx);
+    if (!extracted) {
+      res.status(404).json({ error: "embedded_not_found" });
+      return;
+    }
+
+    const { data, fileName, format } = extracted;
+    const embedUrl = `/api/projects/${projectId}/requirement-materials/${materialId}/embedded/${embedIdx}`;
+
+    // Excel: 转为 HTML 表格
+    if ([".xlsx", ".xls"].includes(format)) {
+      try {
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(data, { type: "buffer" });
+        const sheets: string[] = [];
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const html = XLSX.utils.sheet_to_html(sheet);
+          sheets.push(`<div class="sheet-title">Sheet: ${sheetName}</div>${html}`);
+        }
+        res.json({ type: "table", html: sheets.join("\n"), fileName });
+      } catch (err) {
+        res.json({ type: "error", message: `Excel 解析失败: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      return;
+    }
+
+    // 文本格式 - 自动检测编码（优先 GBK）
+    const textExts = [".xml", ".json", ".txt", ".md", ".csv", ".html", ".htm", ".sql", ".yaml", ".yml"];
+    if (textExts.includes(format)) {
+      let content = "";
+      // 检查是否包含非 ASCII 字节（可能是 GBK）
+      const hasHighBytes = (() => {
+        // 扫描整个文件（OLE嵌入文件可能前面全是 ASCII，中文在后面）
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] > 0x7f) return true;
+        }
+        return false;
+      })();
+
+      if (hasHighBytes) {
+        // 有非 ASCII 字节，尝试 GBK 解码
+        try {
+          const iconvModule = await import("iconv-lite");
+          const iconv = (iconvModule as any).default || iconvModule;
+          content = iconv.decode(data, "gbk");
+        } catch (e) {
+          content = data.toString("utf-8");
+        }
+      } else {
+        content = data.toString("utf-8");
+      }
+      res.json({ type: "text", content, fileName });
+      return;
+    }
+
+    // PDF/图片
+    res.json({ type: format === ".pdf" ? "pdf" : "image", url: embedUrl, fileName });
+  })
+);
+
+// AI 分析所有材料
+app.post(
+  "/api/projects/:projectId/analyze-materials",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const project = await store.getProject(projectId);
+    if (!project) {
+      res.status(404).json({ error: "project_not_found" });
+      return;
+    }
+
+    const { client: aiClient, error: aiError } = await getAiClient();
+    if (!aiClient) {
+      res.status(503).json({ error: "ai_not_configured", message: aiError });
+      return;
+    }
+
+    // 获取所有材料
+    const materials = await store.listRequirementMaterials(projectId);
+    if (materials.length === 0) {
+      res.status(400).json({ error: "no_materials", message: "请先添加需求文档或参考资料" });
+      return;
+    }
+
+    // 重新读取所有文件内容
+    const allPaths = materials.filter(m => m.status === "success").map(m => m.filePath);
+    const files = await fileReaderService.readPaths(allPaths);
+
+    const reqFiles = files.filter((_, i) => materials.filter(m => m.status === "success")[i]?.type === "requirement");
+    const refFiles = files.filter((_, i) => materials.filter(m => m.status === "success")[i]?.type === "reference");
+
+    // AI 分析
+    const clarificationService = new ClarificationService(aiClient);
+    const result = await clarificationService.analyzeRequirementMaterials(reqFiles, refFiles);
+
+    // 保存分析结果
+    const analysisResult = {
+      id: `analysis_${Date.now()}`,
+      projectId,
+      materials,
+      aiSummary: result.aiSummary,
+      questions: result.questions,
+      status: "completed" as const,
+      createdAt: new Date().toISOString()
+    };
+    await store.saveRequirementAnalysisResult(analysisResult);
+
+    // 保存澄清轮次
+    const workflow = (await store.listWorkflowsByProject(projectId))[0] ?? null;
+    await store.saveClarificationRound({
+      projectId,
+      workflowId: workflow?.id ?? null,
+      roundNo: 1,
+      questions: result.questions,
+      answers: [],
+      status: "pending"
+    });
+
+    res.json(analysisResult);
+  })
+);
+
+// 获取最新分析结果
+app.get(
+  "/api/projects/:projectId/requirement-analysis",
+  asyncHandler(async (req, res) => {
+    const projectId = paramValue(req.params.projectId);
+    const result = await store.getLatestRequirementAnalysis(projectId);
+    res.json({ result });
   })
 );
 

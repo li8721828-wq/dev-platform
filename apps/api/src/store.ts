@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { ProjectSummary, RequirementQuestion, WorkflowSummary, DesignDocument, CodingTask, TestRun, CodeReviewRecord, DeployConfig } from "@dev-platform/shared";
+import type { ProjectSummary, RequirementQuestion, WorkflowSummary, DesignDocument, CodingTask, TestRun, CodeReviewRecord, DeployConfig, RequirementMaterial, RequirementAnalysisResult } from "@dev-platform/shared";
 
 export interface RequirementAnalysisRecord {
   id: string;
@@ -147,6 +147,12 @@ export interface AppStore {
     projectId: string; dockerfile?: string; dockerCompose?: string;
     envVars?: DeployConfig["envVars"]; buildCommand?: string; startCommand?: string; status?: DeployConfig["status"];
   }): Promise<void>;
+  // 需求材料
+  saveRequirementMaterials(projectId: string, materials: RequirementMaterial[]): Promise<void>;
+  listRequirementMaterials(projectId: string): Promise<RequirementMaterial[]>;
+  deleteRequirementMaterial(projectId: string, materialId: string): Promise<void>;
+  saveRequirementAnalysisResult(result: RequirementAnalysisResult): Promise<void>;
+  getLatestRequirementAnalysis(projectId: string): Promise<RequirementAnalysisResult | null>;
 }
 
 const now = () => new Date().toISOString();
@@ -174,6 +180,8 @@ class MemoryStore implements AppStore {
   private testRuns = new Map<string, TestRun>();
   private codeReviews = new Map<string, CodeReviewRecord>();
   private deployConfigs = new Map<string, DeployConfig>();
+  private requirementMaterials = new Map<string, RequirementMaterial[]>();
+  private requirementAnalysisResults = new Map<string, RequirementAnalysisResult>();
 
   // 从 JSON 文件加载数据
   async hydrate(file: string) {
@@ -194,6 +202,8 @@ class MemoryStore implements AppStore {
         testRuns?: [string, TestRun][];
         codeReviews?: [string, CodeReviewRecord][];
         deployConfigs?: [string, DeployConfig][];
+        requirementMaterials?: [string, RequirementMaterial[]][];
+        requirementAnalysisResults?: [string, RequirementAnalysisResult][];
       };
       if (data.projects) this.projects = new Map(data.projects);
       if (data.workflows) this.workflows = new Map(data.workflows);
@@ -207,6 +217,8 @@ class MemoryStore implements AppStore {
       if (data.testRuns) this.testRuns = new Map(data.testRuns);
       if (data.codeReviews) this.codeReviews = new Map(data.codeReviews);
       if (data.deployConfigs) this.deployConfigs = new Map(data.deployConfigs);
+      if (data.requirementMaterials) this.requirementMaterials = new Map(data.requirementMaterials);
+      if (data.requirementAnalysisResults) this.requirementAnalysisResults = new Map(data.requirementAnalysisResults);
       console.log(`Store hydrated from ${file} (${this.projects.size} projects, ${this.aiProviders.size} AI providers)`);
     } catch (e) {
       console.error(`Failed to hydrate store from ${file}:`, e);
@@ -232,6 +244,8 @@ class MemoryStore implements AppStore {
         testRuns: [...this.testRuns.entries()],
         codeReviews: [...this.codeReviews.entries()],
         deployConfigs: [...this.deployConfigs.entries()],
+        requirementMaterials: [...this.requirementMaterials.entries()],
+        requirementAnalysisResults: [...this.requirementAnalysisResults.entries()],
       };
       writeFileSync(this.dataFile, JSON.stringify(data, null, 2), "utf-8");
     } catch (e) {
@@ -511,5 +525,48 @@ class MemoryStore implements AppStore {
       config.updatedAt = now();
       this.persist();
     }
+  }
+
+  // ========== 需求材料 ==========
+  async saveRequirementMaterials(projectId: string, materials: RequirementMaterial[]) {
+    const existing = this.requirementMaterials.get(projectId) || [];
+    // 按 ID 去重，更新或追加
+    const existingIds = new Set(existing.map(m => m.id));
+    for (const m of materials) {
+      if (existingIds.has(m.id)) {
+        const idx = existing.findIndex(e => e.id === m.id);
+        if (idx >= 0) existing[idx] = m;
+      } else {
+        existing.push(m);
+      }
+    }
+    this.requirementMaterials.set(projectId, existing);
+    this.persist();
+  }
+
+  async listRequirementMaterials(projectId: string): Promise<RequirementMaterial[]> {
+    return this.requirementMaterials.get(projectId) || [];
+  }
+
+  async deleteRequirementMaterial(projectId: string, materialId: string) {
+    const materials = this.requirementMaterials.get(projectId) || [];
+    const filtered = materials.filter(m => m.id !== materialId);
+    this.requirementMaterials.set(projectId, filtered);
+    this.persist();
+  }
+
+  async saveRequirementAnalysisResult(result: RequirementAnalysisResult) {
+    this.requirementAnalysisResults.set(result.id, result);
+    this.persist();
+  }
+
+  async getLatestRequirementAnalysis(projectId: string): Promise<RequirementAnalysisResult | null> {
+    let latest: RequirementAnalysisResult | null = null;
+    for (const r of this.requirementAnalysisResults.values()) {
+      if (r.projectId === projectId) {
+        if (!latest || r.createdAt > latest.createdAt) latest = r;
+      }
+    }
+    return latest;
   }
 }

@@ -204,3 +204,26 @@ export interface DeployConfig {
   createdAt: string;
   updatedAt: string;
 }
+
+// ========== 需求材料 ==========
+export interface RequirementMaterial {
+  id: string;
+  type: "requirement" | "reference"; // 需求文档 vs 参考资料
+  filePath: string;       // 本地文件路径
+  fileName: string;       // 文件名
+  format: string;         // 文件格式
+  status: "pending" | "reading" | "success" | "error";
+  contentPreview?: string; // 前 200 字符预览
+  error?: string;         // 读取失败的原因
+  addedAt: string;
+}
+
+export interface RequirementAnalysisResult {
+  id: string;
+  projectId: string;
+  materials: RequirementMaterial[];
+  aiSummary: string;      // AI 需求理解总结 (Markdown)
+  questions: RequirementQuestion[];
+  status: "pending" | "analyzing" | "completed" | "failed";
+  createdAt: string;
+}

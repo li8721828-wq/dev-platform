@@ -5,6 +5,12 @@
 
 import type { RequirementQuestion } from "@dev-platform/shared";
 import type { AiClient, ChatMessage } from "../ai/client.js";
+import type { FileContent } from "../requirement/file-reader-service.js";
+
+export interface MaterialsAnalysisResult {
+  aiSummary: string;
+  questions: RequirementQuestion[];
+}
 
 export interface ClarificationResult {
   questions: RequirementQuestion[];
@@ -149,6 +155,68 @@ export class ClarificationService {
     }
 
     return response.data;
+  }
+
+  // 综合分析需求材料和参考资料
+  async analyzeRequirementMaterials(
+    requirementDocs: FileContent[],
+    referenceDocs: FileContent[]
+  ): Promise<MaterialsAnalysisResult> {
+    // 构建材料内容
+    const reqSection = requirementDocs.map(f => `### ${f.name} (${f.format})\n\`\`\`\n${f.content.substring(0, 30000)}\n\`\`\``).join("\n\n");
+    const refSection = referenceDocs.map(f => `### ${f.name} (${f.format})\n\`\`\`\n${f.content.substring(0, 15000)}\n\`\`\``).join("\n\n");
+
+    // 第一步：生成 Markdown 需求理解报告
+    const summaryMessages: ChatMessage[] = [
+      {
+        role: "system",
+        content: `你是一个资深需求分析师。请综合以下需求文档和参考资料，生成一份详细的需求理解报告。
+
+报告要求（使用 Markdown 格式）：
+## 需求概述
+用 3-5 句话描述核心业务场景和目标用户。
+
+## 功能需求
+用列表详细列出每个功能点，包括：
+- 功能名称
+- 功能描述
+- 关键业务规则
+- 输入/输出说明
+
+## 数据模型
+描述涉及的核心数据实体及其关系。
+
+## 业务流程
+描述主要业务流程和关键决策点。
+
+## 非功能需求
+性能、安全、兼容性、可用性等要求。
+
+## 关键约束
+技术约束、业务约束、时间约束等。`
+      },
+      {
+        role: "user",
+        content: `## 需求文档\n${reqSection || "（无需求文档）"}\n\n## 参考资料\n${refSection || "（无参考资料）"}\n\n请综合分析以上材料，生成需求理解报告。`
+      }
+    ];
+
+    const summaryResponse = await this.aiClient.chat(summaryMessages, { temperature: 0.3, maxTokens: 3000 });
+    const aiSummary = summaryResponse.content || "AI 分析失败，请检查配置。";
+
+    // 第二步：生成结构化问题清单
+    const questionMessages: ChatMessage[] = [
+      { role: "system", content: REQUIREMENT_ANALYSIS_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `## 需求文档\n${reqSection || "（无）"}\n\n## 参考资料\n${refSection || "（无）"}\n\n## AI 已生成的需求理解\n${aiSummary}\n\n请基于以上所有信息，生成澄清问题清单。以 JSON 格式返回：\n{"questions": [{"id": "Q-001", "category": "business_rule|field_definition|permission|exception|acceptance|non_functional", "priority": "blocking|high|medium|low", "question": "具体问题", "whyNeeded": "为什么需要澄清", "impactScope": ["范围"], "candidateAnswers": ["候选"]}], "canStartDevelopment": false, "summary": "分析总结"}\n\n要求：问题 3-8 个，聚焦关键问题。`
+      }
+    ];
+
+    const questionResponse = await this.aiClient.chatJson<ClarificationResult>(questionMessages);
+    const questions = questionResponse.data?.questions || [];
+
+    return { aiSummary, questions };
   }
 
   // 基于答案生成追问

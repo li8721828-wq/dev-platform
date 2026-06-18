@@ -12,6 +12,7 @@ import { TestingPanel } from "./components/TestingPanel";
 import { CodeReviewPanel } from "./components/CodeReviewPanel";
 import { DeployConfigPanel } from "./components/DeployConfigPanel";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
+import { RequirementPanel } from "./components/RequirementPanel";
 import "./styles.css";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
@@ -22,7 +23,6 @@ type ActiveTab =
 
 function App() {
   const [projects, setProjects] = React.useState<ProjectSummary[]>([]);
-  const [requirementText, setRequirementText] = React.useState("");
   const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
   const [questions, setQuestions] = React.useState<Array<{ id: string; question: string; priority: string; whyNeeded: string }>>([]);
   const [loading, setLoading] = React.useState(false);
@@ -135,27 +135,6 @@ function App() {
       setFormImporting(false);
     }
   }
-
-
-  async function analyzeRequirement() {
-    if (!selectedProject) { setError("请先创建项目。"); return; }
-    setLoading(true); setError(null);
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/projects/${selectedProject.id}/analyze-requirement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirementText })
-      });
-      if (!response.ok) { const data = await response.json(); throw new Error(data.message || "analysis failed"); }
-      const data = await response.json();
-      setQuestions(data.questions);
-      await loadProjects();
-      if (selectedProject) await loadWorkflows(selectedProject.id);
-      setActiveTab("clarification");
-    } catch (err) { setError(err instanceof Error ? err.message : "需求分析失败，请稍后重试。"); }
-    finally { setLoading(false); }
-  }
-
   async function previewFileFromTree(filePath: string) {
     if (!selectedProject) return;
     setPreviewLoading(true);
@@ -402,19 +381,8 @@ function App() {
           )}
 
           {/* 需求 */}
-          {activeTab === "requirement" && (
-            <div className="tab-panel">
-              <section className="panel">
-                <div className="panel-heading"><h2>需求分析</h2></div>
-                <label className="stacked">
-                  需求内容
-                  <textarea value={requirementText} onChange={(e) => setRequirementText(e.target.value)} rows={8} placeholder="输入需求描述..." />
-                </label>
-                <button className="primary" onClick={analyzeRequirement} disabled={loading || !selectedProject}>
-                  {loading ? "分析中..." : "AI 分析需求"}
-                </button>
-              </section>
-            </div>
+          {activeTab === "requirement" && selectedProject && (
+            <RequirementPanel projectId={selectedProject.id} apiBaseUrl={apiBaseUrl} />
           )}
 
           {/* 澄清 */}
