@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 代码开发平台 - 更新日志</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+      background: #f8f9fb;
+      color: #1e293b;
+      line-height: 1.7;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+    h1 {
+      font-size: 28px;
+      color: #1e293b;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+    .version-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .version-header {
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .version-tag { font-size: 20px; font-weight: 700; }
+    .version-date { font-size: 13px; opacity: 0.85; }
+    .version-body { padding: 20px 24px; }
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #4f46e5;
+      margin: 16px 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .item-list { list-style: none; padding-left: 4px; }
+    .item-list li {
+      padding: 6px 0 6px 24px;
+      position: relative;
+      font-size: 14px;
+      color: #334155;
+    }
+    .item-list li::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 14px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #c7d2fe;
+    }
+    .item-list li.new::before { background: #22c55e; }
+    .item-list li.fix::before { background: #f59e0b; }
+    .item-list li.opt::before { background: #6366f1; }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 4px;
+      margin-right: 6px;
+      font-weight: 600;
+    }
+    .tag-new { background: #dcfce7; color: #15803d; }
+    .tag-fix { background: #fef3c7; color: #b45309; }
+    .tag-opt { background: #e0e7ff; color: #4338ca; }
+    .files {
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #64748b;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+    }
+    .files strong { color: #475569; }
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>📋 AI 代码开发平台 - 更新日志</h1>
+  <p class="subtitle">分支: feature_2026_6_4 | 最后更新: 2026-06-18</p>
+
+  <!-- v0.3 -->
+  <div class="version-card">
+    <div class="version-header">
+      <span class="version-tag">v0.3.0</span>
+      <span class="version-date">2026-06-18</span>
+    </div>
+    <div class="version-body">
+      <div class="section-title">🆕 需求模块增强</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>FileReaderService 文件读取服务，支持 Word(.docx)、PDF、Excel(.xlsx)、XML、JSON、TXT 等 30+ 种格式</li>
+        <li class="new"><span class="tag tag-new">新增</span>RequirementPanel 组件：需求文档 + 参考材料分区管理，支持本地路径输入</li>
+        <li class="new"><span class="tag tag-new">新增</span>AI 综合分析：读取所有需求文档和参考资料，生成 Markdown 需求理解报告 + 结构化问题清单</li>
+        <li class="new"><span class="tag tag-new">新增</span>材料数据持久化到 storage/data.json</li>
+      </ul>
+
+      <div class="section-title">🔧 OLE 嵌入文件解析与预览</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>使用 cfb 库解析 OLE Compound Document，提取 Package 流和 Ole10Native 流中的真实文件</li>
+        <li class="new"><span class="tag tag-new">新增</span>嵌入文件在线预览模态框：Excel 转 HTML 表格、PDF iframe 查看器、文本直接渲染、图片直接显示</li>
+        <li class="new"><span class="tag tag-new">新增</span>文件格式自动检测（魔术字节）：xlsx/xls/pdf/png/jpg/gif + 文本内容检测</li>
+        <li class="fix"><span class="tag tag-fix">修复</span>OLE 流名称含 \u0001 前缀导致匹配失败</li>
+        <li class="fix"><span class="tag tag-fix">修复</span>Ole10Native 数据段定位：采用"取最后一个精确匹配"策略</li>
+      </ul>
+
+      <div class="section-title">🌐 编码与乱码修复</div>
+      <ul class="item-list">
+        <li class="fix"><span class="tag tag-fix">修复</span>Word 文档图片使用 mammoth convertImage 转 base64 data URI，图片正常显示</li>
+        <li class="fix"><span class="tag tag-fix">修复</span>嵌入文件 GBK 编码检测：扫描整个文件查找非 ASCII 字节（不再只查前 1024 字节）</li>
+        <li class="fix"><span class="tag tag-fix">修复</span>iconv-lite ESM 动态导入 .default 问题：decode 函数需通过 .default 访问，之前静默回退 UTF-8 导致中文乱码</li>
+        <li class="fix"><span class="tag tag-fix">修复</span>Ole10Native 文件名 GBK 解码：使用 iconv-lite 从 GBK 转为 UTF-8</li>
+      </ul>
+
+      <div class="section-title">⚡ 文档格式渲染</div>
+      <ul class="item-list">
+        <li class="opt"><span class="tag tag-opt">优化</span>Word(.docx) → mammoth convertToHtml 富文本渲染（标题/列表/表格/图片）</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>PDF → 浏览器内置 PDF 查看器 iframe</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>Excel(.xlsx) → xlsx sheet_to_html 表格渲染（表头高亮/斑马纹）</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>ZIP → adm-zip 解压展示文件列表和文本内容</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>展开文件自动加载完整内容，内容截断上限提升至 500K 字符</li>
+      </ul>
+
+      <div class="files">
+        <strong>新增文件:</strong> apps/api/src/requirement/file-reader-service.ts, apps/api/src/requirement/index.ts, apps/web/src/components/RequirementPanel.tsx<br>
+        <strong>修改文件:</strong> apps/api/src/index.ts, apps/api/src/store.ts, apps/api/src/clarification/clarification-service.ts, apps/web/src/main.tsx, apps/web/src/styles.css, packages/shared/src/index.ts<br>
+        <strong>新增依赖:</strong> mammoth, pdf-parse, xlsx, adm-zip, cfb, iconv-lite
+      </div>
+    </div>
+  </div>
+
+  <!-- v0.2 -->
+  <div class="version-card">
+    <div class="version-header">
+      <span class="version-tag">v0.2.0</span>
+      <span class="version-date">2026-06-17</span>
+    </div>
+    <div class="version-body">
+      <div class="section-title">🏗️ 企业级代码架构图</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>ArchitectureDiagram SVG 组件：自定义渲染架构图，完全控制布局</li>
+        <li class="new"><span class="tag tag-new">新增</span>重心排序算法（Barycenter Ordering）：双向排序减少连线交叉</li>
+        <li class="new"><span class="tag tag-new">新增</span>连线锚点分散：多出入线均匀分布在节点宽度内</li>
+        <li class="new"><span class="tag tag-new">新增</span>数据清洗（sanitize）：去重节点、过滤无效连线、移除自环</li>
+        <li class="new"><span class="tag tag-new">新增</span>节点自适应宽度：根据文字长度动态计算</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>AI 提示词：architecture-json 格式，节点使用真实代码名称，连线 6-10 条</li>
+      </ul>
+
+      <div class="section-title">📝 Markdown 渲染</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>MarkdownRenderer 组件：react-markdown + remark-gfm + mermaid</li>
+        <li class="new"><span class="tag tag-new">新增</span>architecture-json 代码块检测并渲染为 SVG 架构图</li>
+        <li class="new"><span class="tag tag-new">新增</span>Mermaid 代码块检测并渲染</li>
+        <li class="new"><span class="tag tag-new">新增</span>GFM 表格渲染（表头高亮/斑马纹/边框）</li>
+      </ul>
+
+      <div class="section-title">🔗 本地导入与分支</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>本地路径导入支持 Git 分支选择（git checkout）</li>
+        <li class="new"><span class="tag tag-new">新增</span>项目创建表单统一导入方式（下拉选择：仅创建/本地/Git）</li>
+        <li class="opt"><span class="tag tag-opt">优化</span>AI 项目分析改为手动按钮触发</li>
+      </ul>
+
+      <div class="section-title">💾 数据持久化</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>MemoryStore JSON 文件持久化（hydrate/persist）</li>
+        <li class="new"><span class="tag tag-new">新增</span>AI 提供商配置持久化</li>
+        <li class="new"><span class="tag tag-new">新增</span>项目 Git 信息持久化</li>
+      </ul>
+
+      <div class="files">
+        <strong>新增文件:</strong> apps/web/src/components/ArchitectureDiagram.tsx, apps/web/src/components/MarkdownRenderer.tsx<br>
+        <strong>修改文件:</strong> apps/api/src/index.ts, apps/api/src/store.ts, apps/api/src/git/git-service.ts, apps/web/src/main.tsx, apps/web/src/styles.css
+      </div>
+    </div>
+  </div>
+
+  <!-- v0.1 -->
+  <div class="version-card">
+    <div class="version-header">
+      <span class="version-tag">v0.1.0</span>
+      <span class="version-date">2026-06-16</span>
+    </div>
+    <div class="version-body">
+      <div class="section-title">🎉 初始版本</div>
+      <ul class="item-list">
+        <li class="new"><span class="tag tag-new">新增</span>项目创建与导入（本地路径 junction 符号链接 / Git 克隆）</li>
+        <li class="new"><span class="tag tag-new">新增</span>项目文件树浏览与内联文件预览</li>
+        <li class="new"><span class="tag tag-new">新增</span>AI 提供商配置（OpenAI 兼容接口）</li>
+        <li class="new"><span class="tag tag-new">新增</span>AI 项目分析（技术栈/架构/功能/目录结构）</li>
+        <li class="new"><span class="tag tag-new">新增</span>需求分析、澄清、反思、方案设计、编码、测试、审查、部署模块框架</li>
+        <li class="new"><span class="tag tag-new">新增</span>Monaco Editor 代码编辑器</li>
+        <li class="new"><span class="tag tag-new">新增</span>需求追溯矩阵</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer">
+    AI 代码开发平台 | GitHub: li8721828-wq/dev-platform
+  </div>
+</div>
+</body>
+</html>
